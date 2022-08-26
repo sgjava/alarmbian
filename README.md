@@ -64,7 +64,7 @@ prototyping. If you do run my install you only need to do the following because 
 * `./install-opencv.sh`
 * Check *.log files
 
-# Install Supervisor
+## Install Supervisor
 Supervisor will be used to start all the jobs up required for Alarmbian. We
 will place all logs in ~/logs.
 * `cd`
