@@ -137,6 +137,15 @@ and change opencv to jar file
 and change opencv.lib as needed
 * `mvn initialize`
 * `mvn clean install`
+* `cp target/alarmbian-1.0.0-SNAPSHOT.jar ~/.`
+* `cd`
+* `sudo supervisorctl start h2`
+* `sudo supervisorctl start rtsp-simple-server`
+* Use [application.properties](https://raw.githubusercontent.com/sgjava/alarmbian/main/src/main/resources/application.properties)
+to make your cam1.properties configuration
+* `java -Djava.library.path=/home/servadmin/opencv/build/lib -jar alarmbian-1.0.0-SNAPSHOT.jar --spring.config.location=cam1.properties`
+* ^C to exit app
+* If you see a SIGSEGV don't worry because ^C will not be used for shutdown.
 Add Supervisor job
 * Reference [configuration](scripts/supervisor/cam1.conf)
 * `sudo nano /etc/supervisor/conf.d/cam1.conf`
