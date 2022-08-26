@@ -172,6 +172,7 @@ based version.
   * `docker run --detach --restart unless-stopped -e VISION-DETECTION=True -e MODE=Medium -v localstorage:/datastore -p 5000:5000 --name deepstack deepquestai/deepstack:arm64`
 * x86_64
   * `docker run --detach --restart unless-stopped -e VISION-DETECTION=True -e MODE=Medium -v localstorage:/datastore -p 5000:5000 --name deepstack deepquestai/deepstack`
+* `docker update --restart unless-stopped deepstack`
 To stop
 * `docker stop deepstack`
 To remove volume
