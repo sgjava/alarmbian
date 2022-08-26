@@ -131,6 +131,11 @@ Add Supervisor job
 * `cd`
 * `git clone --depth 1 https://github.com/sgjava/alarmbian.git`
 * `cd alarmbian`
+* Edit [POM](https://github.com/sgjava/alarmbian/blob/304a0e515aa76a36929dafcdf3c78d18fea2f6a0/pom.xml#L24)
+and change opencv to jar file
+* Edit [POM](https://github.com/sgjava/alarmbian/blob/304a0e515aa76a36929dafcdf3c78d18fea2f6a0/pom.xml#L26)
+and change opencv.lib as needed
+* `mvn initialize`
 * `mvn clean install`
 Add Supervisor job
 * Reference [configuration](scripts/supervisor/cam1.conf)
