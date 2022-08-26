@@ -95,7 +95,7 @@ Add Supervisor job
 
 ## H2 database
 H2 is used to store data from the Alarmbian application. Other data stores could
-be used as well with soconfiguration changes,
+be used as well with configuration and schema.sql changes,
 * `cd`
 * [Download](http://www.h2database.com/html/download.html) latest jar file (use Binary JAR link)
 * Example `wget -O h2-2.1.214.jar https://search.maven.org/remotecontent?filepath=com/h2database/h2/2.1.214/h2-2.1.214.jar`
