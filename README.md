@@ -1,10 +1,15 @@
 ![Title](images/title.png)
 
-Alarmbian is a DIY NVR at its core, but it can also be used to build your own
-smart cameras. The cool thing is you can use almost any board
+Alarmbian is a cross platform DIY NVR at its core, but it can also be used to
+build your own smart cameras. The cool thing is you can use almost any board
 Armbian supports, an x86 mini PC, an old x86 based PC and probably Windows
 since the code is based on Java, FFMPEG, OpenCV and Deepstack. All testing is
 on Ubuntu 22.04 at this point.
+
+This project is at the beginning stages, but the event system and database
+logging of events is in place. The plan is to add REST services in order to get
+data from the camera servers and have a client be able to use that data. I've
+already built one based on an older version of Alarmbian.
 * Low power and small footprint ODROID-XU4 handles six 4K/15 FPS H265+ streams.
 * Motion detection built in with the ability to add other types of realtime detection.
 * History image shows entire motion event in a single image.
@@ -132,18 +137,18 @@ Add Supervisor job
 * `git clone --depth 1 https://github.com/sgjava/alarmbian.git`
 * `cd alarmbian`
 * Edit [POM](https://github.com/sgjava/alarmbian/blob/304a0e515aa76a36929dafcdf3c78d18fea2f6a0/pom.xml#L24)
-and change opencv to jar file
+and change opencv jar file as needed
 * Edit [POM](https://github.com/sgjava/alarmbian/blob/304a0e515aa76a36929dafcdf3c78d18fea2f6a0/pom.xml#L26)
 and change opencv.lib as needed
 * `mvn initialize`
 * `mvn clean install`
-* `cp target/alarmbian-1.0.0-SNAPSHOT.jar ~/.`
+* `cp server/target/server-1.0.0-SNAPSHOT.jar ~/.`
 * `cd`
 * `sudo supervisorctl start h2`
 * `sudo supervisorctl start rtsp-simple-server`
 * Use [application.properties](https://raw.githubusercontent.com/sgjava/alarmbian/main/src/main/resources/application.properties)
 to make your cam1.properties configuration
-* `java -Djava.library.path=/home/servadmin/opencv/build/lib -jar alarmbian-1.0.0-SNAPSHOT.jar --spring.config.location=cam1.properties`
+* `java -Djava.library.path=/home/servadmin/opencv/build/lib -jar server-1.0.0-SNAPSHOT.jar --spring.config.location=cam1.properties`
 * ^C to exit app
 * If you see a SIGSEGV don't worry because ^C will not be used for shutdown.
 Add Supervisor job
@@ -164,10 +169,14 @@ Add Supervisor job
 
 ## Deepstack
 This is for optional Deepstack 2.0 support. This can be run from a different system
-if needed.There is not longer support for ARM32, but all the rest of the stack
+if needed.There is no longer support for ARM32, but all the rest of the stack
 supports ARM32.Use ARM64 or x86_64 to run Deepstack. Make sure you use the correct
  version of `docker run` if you want hardware acceleration, etc. Below is the CPU
 based version.
+
+Please note Deepstack is very CPU intensive without hardware acceleration. Trying to
+run multiple cameras and Deepstack on the same low end hardware will result in
+poor performance.
 * ARM64
   * `docker run --detach --restart unless-stopped -e VISION-DETECTION=True -e MODE=Medium -v localstorage:/datastore -p 5000:5000 --name deepstack deepquestai/deepstack:arm64`
 * x86_64
@@ -178,20 +187,19 @@ To stop
 To remove volume
 * `docker volume rm localstorage`
 
-## Camera calibration
-The substream images can be calibrated to remove optical distortion.
-* `ffmpeg -i rtsp://hostname:8554/sub1 -acodec copy -vcodec copy -t 120 test.mk`
-* `mkdir images`
-* `ffmpeg -ss 40  -i test.mkv -t 60 images/out-%05d.jpg`
-
 # Use case 1 ROCK64
 Going the SBC route can be a bit more difficult than using an old X86 based
 desktop and Ubuntu. The main advantages are price, size and power consumption.
-* ROCK64 SBC 4G RAM
+* ROCK64 V3 SBC with 4G RAM
 * VIA Labs, Inc. VL711 SATA 6Gb/s bridge (USB 3 port)
 * KingDian 480GB 3D NAND 2.5 Inch SSD
 * Realtek Semiconductor Corp. RTL8153 Gigabit Ethernet Adapter (USB 2 port)
 * Raspberry Pi heat sink and 12V fan powered off ROCK64's 5V/GND pins
+
+In this instance I'm testing the full stack including Deepstack object detection.
+one 4K camera with motion detection uses about 9% CPU. Once frames are sent to
+Deepstack it will spike to 80%. Detection is about 2 FPS since the code
+serializes calls. 
 
 
 
