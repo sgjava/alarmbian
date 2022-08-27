@@ -20,8 +20,11 @@ I'll point you in the right direction hopefully.
 
 ## Install FFMPEG
 This is the center of the camera stream universe and where hardware acceleration
-is very important. FFMPEG is used to stream off the high resolution video and
-can also be used to read the substream frames in OpenCV, etc. 
+can be very important. FFMPEG is used to stream off the high resolution video and
+can also be used to read the substream frames in OpenCV, etc. The nice thing is
+that if you copy the stream to file there no decode/encode steps to slow things
+down. Thus it's easy to stream multiple 4K cameras to disk using low end ARM
+based hardware. In my case I'm using H265+.
 * FFMPEG generic `sudo apt install pkg-config` then `sudo apt install ffmpeg` if
 hardware acceleration is in the package or you want generic version
 * FFMPEG from [source](https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu)
