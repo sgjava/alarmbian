@@ -115,7 +115,7 @@ be used as well with configuration and schema.sql changes,
 * ^C to exit server shell
 * `rm test.mv.db`
 Add Supervisor job
-* Reference [configuration](scripts/supervisor/h2.conf)
+* Reference [configuration](server/scripts/supervisor/h2.conf)
 * `sudo nano /etc/supervisor/conf.d/h2.conf`
 * `sudo supervisorctl update`
 * Test proxy on client
@@ -139,10 +139,10 @@ Add Supervisor job
 * `cd`
 * `git clone --depth 1 https://github.com/sgjava/alarmbian.git`
 * `cd alarmbian`
-* Edit [POM](https://github.com/sgjava/alarmbian/blob/304a0e515aa76a36929dafcdf3c78d18fea2f6a0/pom.xml#L24)
-and change opencv jar file as needed
-* Edit [POM](https://github.com/sgjava/alarmbian/blob/304a0e515aa76a36929dafcdf3c78d18fea2f6a0/pom.xml#L26)
-and change opencv.lib as needed
+* Edit [POM](https://github.com/sgjava/alarmbian/blob/72e7bf59daf5b959c3bb6e710d9660549715e765/server/pom.xml#L21)
+and change `opencv` as needed
+* Edit [POM](https://github.com/sgjava/alarmbian/blob/72e7bf59daf5b959c3bb6e710d9660549715e765/server/pom.xml#L23)
+and change `opencv.lib` as needed
 * `mvn initialize`
 * `mvn clean install`
 * `cp server/target/server-1.0.0-SNAPSHOT.jar ~/.`
@@ -155,7 +155,7 @@ to make your cam1.properties configuration
 * ^C to exit app
 * If you see a SIGSEGV don't worry because ^C will not be used for shutdown.
 Add Supervisor job
-* Reference [configuration](scripts/supervisor/cam1.conf)
+* Reference [configuration](server/scripts/supervisor/cam1.conf)
 * `sudo nano /etc/supervisor/conf.d/cam1.conf`
 * `sudo supervisorctl update`
 * Check logs dir for issues
