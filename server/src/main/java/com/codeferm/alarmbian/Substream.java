@@ -4,6 +4,7 @@
 package com.codeferm.alarmbian;
 
 import com.codeferm.alarmbian.image.FfmpegIn;
+import com.codeferm.alarmbian.image.VideoIn;
 import com.codeferm.alarmbian.type.VideoSource;
 import java.lang.reflect.InvocationTargetException;
 import java.util.LinkedHashMap;
@@ -87,6 +88,9 @@ public class Substream {
             final var inArgMap = new LinkedHashMap<String, String>();
             config.getProperties("substream.input.arg", inArgMap);
             ffmpegIn.setBin(env.getProperty("ffmpeg.bin")).setInputArgs(inArgMap);
+        } else if (videoSource instanceof VideoIn videoIn) {
+            // Set FPS if VideoIn used
+            videoIn.setFps(Integer.parseInt(env.getProperty("substream.fps")));
         }
         videoSource.open(env.getProperty("substream.device"));
     }
