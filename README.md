@@ -118,7 +118,7 @@ Add Supervisor job
 * Reference [configuration](server/scripts/supervisor/h2.conf)
 * `sudo nano /etc/supervisor/conf.d/h2.conf`
 * `sudo supervisorctl update`
-* Test proxy on client
+* Test H2 client
 * Check logs dir for issues
 
 ## Install Maven
