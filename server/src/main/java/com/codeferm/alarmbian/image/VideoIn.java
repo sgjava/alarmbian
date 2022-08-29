@@ -7,9 +7,12 @@ import com.codeferm.alarmbian.type.VideoSource;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.TimeUnit;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.opencv.core.Mat;
 import org.opencv.videoio.VideoCapture;
+import org.opencv.videoio.Videoio;
 
 /**
  * Read frames from OpenCV VideoCapture source.
@@ -18,6 +21,8 @@ import org.opencv.videoio.VideoCapture;
  * @version 1.0.0
  * @since 1.0.0
  */
+@Data
+@NoArgsConstructor
 @Slf4j
 public class VideoIn extends VideoSource {
 
@@ -30,45 +35,17 @@ public class VideoIn extends VideoSource {
      */
     private VideoCapture videoCapture;
     /**
-     * FPS delay for video file input otherwise it reads as fast as system will let VideoCapture.
+     * Use FPS delay for video file input.
      */
-    private int fps;
+    private double fps = 0.0;
     /**
      * MS delay if FPS > 0.
      */
-    private int delay = 0;
-    private Instant start;
-
-    public Mat getMat() {
-        return mat;
-    }
-
-    public VideoIn setMat(Mat mat) {
-        this.mat = mat;
-        return this;
-    }
-
-    public VideoCapture getVideoCapture() {
-        return videoCapture;
-    }
-
-    public VideoIn setVideoCapture(VideoCapture videoCapture) {
-        this.videoCapture = videoCapture;
-        return this;
-    }
-
-    public int getFps() {
-        return fps;
-    }
-
-    public VideoIn setFps(int fps) {
-        this.fps = fps;
-        // MS to delay if FPX > 0
-        if (fps > 0) {
-            delay = 1000 / fps;
-        }
-        return this;
-    }
+    private long delay = 0;
+    /**
+     * Next frame instant, so FPS delay can be calculated.
+     */
+    private Instant nextFrame = Instant.now();
 
     /**
      * Open OpenCV VideoCapture.
@@ -86,6 +63,17 @@ public class VideoIn extends VideoSource {
         } else {
             videoCapture = new VideoCapture();
             videoCapture.open(device);
+            fps = videoCapture.get(Videoio.CAP_PROP_FPS);
+            // Returns 90000.0 for RTSP stream
+            if (Double.compare(fps, 90000.0) != 0) {
+                // MS to delay if FPS > 0.0
+                if (fps > 0.0) {
+                    delay = Math.round(1000.0 / fps);
+                }
+            } else {
+                fps = 0.0;
+            }
+            log.debug(String.format("FPS: %3.1f", fps));
         }
         // Create Mat if needed
         if (mat == null) {
@@ -102,8 +90,7 @@ public class VideoIn extends VideoSource {
      */
     @Override
     public Mat getFrame() {
-        final var now = Instant.now();
-        final var check = now.plusMillis(getTimeout());
+        final var check = Instant.now().plusMillis(getTimeout());
         var read = false;
         while (!read && check.compareTo(Instant.now()) > 0) {
             read = videoCapture.read(mat);
@@ -111,7 +98,7 @@ public class VideoIn extends VideoSource {
             if (!read) {
                 try {
                     TimeUnit.MILLISECONDS.sleep(getTimeout() / 10);
-                } catch (InterruptedException ie) {
+                } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
             }
@@ -121,14 +108,16 @@ public class VideoIn extends VideoSource {
             frame = null;
         }
         // This delay is useful for video file input where you want the FPS simmulated
-        if (fps > 0) {
-            final var sleepTime = delay - ChronoUnit.MILLIS.between(now, Instant.now());
+        if (fps > 0.0) {
+            final var sleepTime = delay - ChronoUnit.MILLIS.between(nextFrame, Instant.now());
+            nextFrame = Instant.now();
             if (sleepTime > 0) {
                 try {
                     TimeUnit.MILLISECONDS.sleep(sleepTime);
-                } catch (InterruptedException ie) {
+                } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                }            }
+                }
+            }
         }
         return frame;
     }
