@@ -17,7 +17,7 @@
     
     <properties>
         <!-- OpenCV jar -->
-        <opencv>${user.home}/opencv/build/bin/opencv-460.jar</opencv>
+        <opencv>${user.home}/opencv/build/bin/opencv-4130.jar</opencv>
         <!-- OpenCV native lib -->
         <opencv.lib>${user.home}/opencv/build/lib</opencv.lib>
     </properties>
@@ -46,7 +46,7 @@
                             <file>${opencv}</file>
                             <groupId>org.opencv</groupId>
                             <artifactId>opencv</artifactId>
-                            <version>4.6.0</version>
+                            <version>4.13.0</version>
                             <packaging>jar</packaging>
                         </configuration>
                     </execution>
@@ -94,7 +94,7 @@
         <dependency>
             <groupId>org.opencv</groupId>
             <artifactId>opencv</artifactId>
-            <version>4.6.0</version>
+            <version>4.13.0</version>
         </dependency>
         <dependency>
             <groupId>com.github.kokorin.jaffree</groupId>

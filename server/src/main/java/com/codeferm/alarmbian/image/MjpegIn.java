@@ -10,7 +10,10 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.Authenticator;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.PasswordAuthentication;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Locale;
 import javax.imageio.ImageIO;
@@ -68,8 +71,8 @@ public class MjpegIn extends VideoSource {
         URL deviceUrl = null;
         try {
             log.debug(String.format("Opening %s", device));
-            deviceUrl = new URL(device);
-        } catch (IOException e) {
+            deviceUrl = new URI(device).toURL();
+        } catch (URISyntaxException | MalformedURLException e) {
             throw new RuntimeException(e);
         }
         log.debug(String.format("Connect and read timeout %d ms", timeout));
@@ -124,8 +127,8 @@ public class MjpegIn extends VideoSource {
         var isOpen = false;
         URL deviceUrl = null;
         try {
-            deviceUrl = new URL(device);
-        } catch (IOException e) {
+            deviceUrl = new URI(device).toURL();
+        } catch (URISyntaxException | MalformedURLException e) {
             throw new RuntimeException(e);
         }
         final var userInfo = deviceUrl.getUserInfo();

@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.TimeUnit;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.opencv.core.Mat;
@@ -24,6 +25,7 @@ import org.opencv.videoio.Videoio;
 @Data
 @NoArgsConstructor
 @Slf4j
+@EqualsAndHashCode(callSuper = true)
 public class VideoIn extends VideoSource {
 
     /**

@@ -34,14 +34,14 @@ warning: this will build static libs
 
 ## Install Java
 * `cd`
-* [Download](https://www.azul.com/downloads/?package=jdk#download-openjdk) Zulu JDK 17 for your platform using the .tar.gz
+* [Download](https://www.azul.com/downloads/?package=jdk#download-openjdk) Zulu JDK 21 for your platform using the .tar.gz
 * `tar -xf zulu*`
 * `rm *.tar.gz`
 * `sudo mkdir -p /usr/lib/jvm`
-* `sudo mv zulu* /usr/lib/jvm/jdk17`
+* `sudo mv zulu* /usr/lib/jvm/jdk21`
 * `sudo nano /etc/environment`
-* Modify PATH and append `:/usr/lib/jvm/jdk17/bin` to the end
-* Add `JAVA_HOME="/usr/lib/jvm/jdk17"` on new line
+* Modify PATH and append `:/usr/lib/jvm/jdk21/bin` to the end
+* Add `JAVA_HOME="/usr/lib/jvm/jdk21"` on new line
 * Save file
 * Close shell and open a new one
 * `java -version`
@@ -79,24 +79,24 @@ will place all logs in ~/logs.
 * `mkdir logs`
 * `sudo apt install supervisor`
 
-## Install rtsp-simple-server
+## Install MediaMTX
 It makes sense to centralize camera streams and minimize traffic from the cameras.
-rtsp-simple-server makes this happen. Cameras like the Annke C800 only allow one
+mediamtx makes this happen. Cameras like the Annke C800 only allow one
 connection to the substream, so a proxy is required. Substreams are used for
 analysis and live viewing, so more than one stream at a time is required.
 * `cd`
-* [Download](https://github.com/aler9/rtsp-simple-server/releases) latest .tar.gz file
-* `tar -xf rtsp-simple-server*`
+* [Download](https://github.com/bluenviron/mediamtx/releases) latest .tar.gz file
+* `tar -xf mediamtx*`
 * `rm *.tar.gz`
-* `nano rtsp-simple-server.yml`
+* `nano mediamtx.yml`
 * `protocols: [tcp]`
 * Edit `paths` section to specify your substreams
-* `./rtsp-simple-server`
+* `./mediamtx`
 * Test proxy on client
 * ^C to exit
 Add Supervisor job
-* Reference [configuration](scripts/supervisor/rtsp-simple-server.conf)
-* `sudo nano /etc/supervisor/conf.d/rtsp-simple-server.conf`
+* Reference [configuration](scripts/supervisor/mediamtx.conf)
+* `sudo nano /etc/supervisor/conf.d/mediamtx.conf`
 * `sudo supervisorctl update`
 * Test proxy on client
 * Check logs dir for issues
@@ -106,7 +106,7 @@ H2 is used to store data from the Alarmbian application. Other data stores could
 be used as well with configuration and schema.sql changes,
 * `cd`
 * [Download](http://www.h2database.com/html/download.html) latest jar file (use Binary JAR link)
-* Example `wget -O h2-2.1.214.jar https://search.maven.org/remotecontent?filepath=com/h2database/h2/2.1.214/h2-2.1.214.jar`
+* Example `wget -O h2-2.3.232.jar https://search.maven.org/remotecontent?filepath=com/h2database/h2/2.3.232/h2-2.3.232.jar`
 * `java -cp h2*.jar org.h2.tools.Server -baseDir ~/ -tcp -web -ifNotExists -tcpAllowOthers`
 * Start another shell on same machine
 * `java -cp h2*.jar org.h2.tools.Shell -driver org.h2.Driver -url jdbc:h2:tcp://localhost/nio:test -user sa -password sa`
@@ -148,7 +148,7 @@ and change `opencv.lib` as needed
 * `cp server/target/server-1.0.0-SNAPSHOT.jar ~/.`
 * `cd`
 * `sudo supervisorctl start h2`
-* `sudo supervisorctl start rtsp-simple-server`
+* `sudo supervisorctl start mediamtx`
 * Use [application.properties](https://raw.githubusercontent.com/sgjava/alarmbian/main/src/main/resources/application.properties)
 to make your cam1.properties configuration
 * `java -Djava.library.path=/home/servadmin/opencv/build/lib -jar server-1.0.0-SNAPSHOT.jar --spring.config.location=cam1.properties`
