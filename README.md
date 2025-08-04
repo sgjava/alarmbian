@@ -4,7 +4,7 @@ Alarmbian is a cross platform DIY NVR at its core, but it can also be used to
 build your own smart cameras. The cool thing is you can use almost any board
 Armbian supports, an x86 mini PC, an old x86 based PC and probably Windows
 since the code is based on Java, FFMPEG, OpenCV and Deepstack. All testing is
-on Ubuntu 22.04 at this point.
+on Ubuntu 24.04 at this point.
 
 This project is at the beginning stages, but the event system and database
 logging of events is in place. The plan is to add REST services in order to get
@@ -151,7 +151,7 @@ and change `opencv.lib` as needed
 * `sudo supervisorctl start mediamtx`
 * Use [application.properties](https://raw.githubusercontent.com/sgjava/alarmbian/main/src/main/resources/application.properties)
 to make your cam1.properties configuration
-* `java -Djava.library.path=/home/servadmin/opencv/build/lib -jar server-1.0.0-SNAPSHOT.jar --spring.config.location=cam1.properties`
+* `java -Djava.library.path=/home/username/opencv/build/lib -jar server-1.0.0-SNAPSHOT.jar --spring.config.location=cam1.properties`
 * ^C to exit app
 * If you see a SIGSEGV don't worry because ^C will not be used for shutdown.
 Add Supervisor job
