@@ -94,6 +94,7 @@ analysis and live viewing, so more than one stream at a time is required.
 * `./mediamtx`
 * Test proxy on client
 * ^C to exit
+
 Add Supervisor job
 * Reference [configuration](scripts/supervisor/mediamtx.conf)
 * `sudo nano /etc/supervisor/conf.d/mediamtx.conf`
@@ -114,6 +115,7 @@ be used as well with configuration and schema.sql changes,
 * `ls -al test.mv.db`
 * ^C to exit server shell
 * `rm test.mv.db`
+
 Add Supervisor job
 * Reference [configuration](server/scripts/supervisor/h2.conf)
 * `sudo nano /etc/supervisor/conf.d/h2.conf`
