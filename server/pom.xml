@@ -99,6 +99,7 @@
                             <version>4.13.0</version>
                             <packaging>jar</packaging>
                             <localRepositoryPath>${user.home}/.m2/repository</localRepositoryPath>
+                            <generatePom>true</generatePom>
                         </configuration>
                     </execution>
                 </executions>
@@ -119,11 +120,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jdbc</artifactId>
         </dependency>     
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-openfeign</artifactId>
