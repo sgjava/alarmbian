@@ -121,6 +121,36 @@ public class EventService {
     public List<Event> findByTime(final String deviceName, final Timestamp timestamp) {
         return eventDao.findByTime(deviceName, timestamp);
     }
+    
+    /**
+     * Get all entities by device name and event type = 'RECORD_START'.
+     *
+     * @param deviceName Device name.
+     * @return List of Event entities.
+     */
+    public List<Event> findBuffers(final String deviceName) {
+        return eventDao.findBuffers(deviceName);
+    }
+    
+    /**
+     * Get all entities by device name and event type in ('MOTION_START', 'MOTION_STOP', 'HISTORY_STOP').
+     *
+     * @param deviceName Device name.
+     * @return List of Event entities.
+     */
+    public List<Event> findMotionEvents(final String deviceName) {
+        return eventDao.findMotionEvents(deviceName);
+    }
+
+    /**
+     * Get all entities by device name and event type in ('MOTION_START', 'MOTION_STOP', 'MOTION_RESET', 'HISTORY_STOP').
+     *
+     * @param deviceName Device name.
+     * @return List of Event entities.
+     */
+    public List<Event> findMotionFiles(final String deviceName) {
+        return eventDao.findMotionFiles(deviceName);
+    }         
 
     /**
      * Delete events by device name and timestamp.
