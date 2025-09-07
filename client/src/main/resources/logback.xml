@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{MM/dd/yyyy HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="org.jboss" level="info" />
+    <logger name="org.apache.commons.beanutils" level="error" />
+    <logger name="com.github.kokorin.jaffree" level="info" />
+    <logger name="com.github.kokorin.jaffree.process.BaseStdReader" level="warn" />
+    <logger name="org.hibernate" level="info" />
+    <logger name="org.springframework" level="info" />
+    <logger name="com.zaxxer" level="info" />
+
+    <root level="debug">
+        <appender-ref ref="STDOUT" />
+    </root>
+</configuration>

@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+Copyright (c) Steven P. Goldsmith. All rights reserved.
+
+Created by Steven P. Goldsmith March 6, 2021
+sgjava@gmail.com
+-->
+
+<configuration>
+    <!-- Device name -->
+    <name>testcam</name>
+    
+    <!--Exit timer in milliseconds -->
+    <runtime>60000</runtime>
+
+    <!-- SQL datasource -->
+    <dataSource>
+        <driver>org.h2.Driver</driver>
+        <localUrl>jdbc:h2:tcp://localhost/nio:test</localUrl>
+        <remoteUrl>jdbc:h2:tcp://localhost/nio:test</remoteUrl>
+        <user>sa</user>
+        <password>sa</password>
+        <poolSize>2</poolSize>
+    </dataSource>
+    
+    <!-- Common FFMPEG configuration -->
+    <ffmpeg>
+        <!-- Class used to record stream -->
+        <class>com.codeferm.alarmbian.FfmpegOut</class>
+        
+        <!-- Binary path for ffmpeg (include trailing slash) -->
+        <bin>/usr/bin/</bin>
+
+        <!-- Local path for recordings -->
+        <localPath>/home/servadmin/Downloads</localPath>
+
+        <!-- Remote from path for recordings to replace substring in localPath -->
+        <remoteFromPath>/home/servadmin/Downloads</remoteFromPath>
+
+        <!-- Remote to path for recordings to replace substring in localPath -->
+        <remoteToPath>/home/servadmin/Downloads</remoteToPath>
+                        
+        <!-- Video container -->
+        <container>mkv</container>
+        
+        <!-- Directory name pattern based on DateTimeFormatter -->
+        <dirPattern>MMddyyyy</dirPattern>
+
+        <!-- File name pattern based on DateTimeFormatter -->
+        <filePattern>HHmmss</filePattern>
+    </ffmpeg>
+
+    <!-- 
+    subStream is used for motion detection, etc. Typically it should be set to 3
+    or 4 FPS for best results.
+    -->
+    <subStream>
+        <!-- Give subStream human readable name -->
+        <name>mpeg4</name>
+
+        <!-- Class to get frames -->
+        <!-- <class>com.codeferm.alarmbian.MjpegIn</class> -->
+        <class>com.codeferm.alarmbian.FfmpegIn</class>
+        
+        <!-- Connect string -->
+        <!-- <device>http://admin:ops2long@192.168.1.10/ISAPI/Streaming/channels/102/httpPreview</device> -->
+        <!-- <device>http://admin:ops2long@192.168.1.54:8080/?action=stream</device> -->
+        <!-- <device>http://admin:1234@192.168.1.8/mjpg/video.mjpg</device> -->
+        <!-- <device>rtsp://192.168.1.8:554/ipcam.sdp</device>-->
+        <device>rtsp://192.168.1.8:554/ipcam.sdp</device>
+        <!-- Connect and read timeout -->
+        <timeout>10000</timeout>
+                
+        <!-- Suffix to add after filePattern -->
+        <fileSuffix>sub</fileSuffix>
+        
+        <!-- 
+        FFMPEG arguments in order to be added. These are only used for com.codeferm.alarmbian.FfmpegIn class.
+        -->
+        <arguments>
+            <input>
+                <arg>-rtsp_transport tcp</arg>
+                <arg>-use_wallclock_as_timestamps 1</arg>
+                <arg>-channel_layout mono</arg>
+            </input>
+            <output>
+                <arg>-hide_banner</arg>
+                <arg>-loglevel warn</arg>
+            </output>
+        </arguments>
+    </subStream>
+    
+    <!-- 
+    bufferStream is used for recording from best resolution, compression, etc. Typically it should be set to the
+    higest FPS,resolution and quality. mainStream copies video from this file for veaious detection events.
+    -->    
+    <bufferStream>
+        <!-- Give bufferStream human readable name -->
+        <name>h265</name>
+
+        <!-- Connect string -->
+        <!-- <device>rtsp://192.168.1.54:8554/proxied1</device> -->
+        <device>rtsp://192.168.1.8:554/ipcam_h264.sdp</device>
+        
+        <!-- Suffix to add after filePattern -->
+        <fileSuffix>buffer</fileSuffix>
+
+        <!-- ffmpeg arguments in order to be added -->
+        <arguments>
+            <input>
+                <arg>-rtsp_transport tcp</arg>
+                <arg>-use_wallclock_as_timestamps 1</arg>
+                <arg>-channel_layout mono</arg>
+            </input>
+            <output>
+                <arg>-c copy</arg>
+                <arg>-fflags nobuffer</arg>
+                <arg>-hide_banner</arg>
+                <arg>-loglevel warning</arg>
+            </output>
+        </arguments>
+        
+        <!-- Record buffer length in milliseconds -->
+        <length>10000</length>
+    </bufferStream>  
+    
+    <!--
+    Motion detection using moving average.
+    -->
+    <motion>
+        <!-- Motion detection class -->
+        <class>com.codeferm.alarmbian.Motion</class>
+        
+        <!-- Blurring kernel size for blur operation -->
+        <kSize>8,8</kSize>
+
+        <!-- Weight of the input image for accumulateWeighted operation -->
+        <alpha>0.03</alpha>
+
+        <!-- Threshold for Threshold Binary operation -->
+        <blackThreshold>25.0</blackThreshold>
+
+        <!-- Maximum threshold for Threshold Binary operation -->
+        <maxThreshold>255.0</maxThreshold>
+
+        <!-- Percentage of change required to reset reference image -->
+        <maxChange>25.0</maxChange>
+
+        <!-- Percent of image change to trigger motion (must be less than maxChange) -->
+        <startThreshold>1.0</startThreshold>
+
+        <!-- Percent of image change to trigger non-motion (must be greater than startThreshold) -->
+        <stopThreshold>0.0</stopThreshold>
+        
+        <!--
+        A bit mask image of pixels to ignore. Only white pixels are
+        considered for motion analysis (black pixels are ignored). The image
+        size should be the same as the subStream image. Leave empty for no mask.
+
+        <ignoreMask>/home/servadmin/Downloads/mask.jpg</ignoreMask>                  
+        -->
+        <ignoreMask></ignoreMask>                  
+    </motion>
+
+    <!--
+    Creates composite image consisting of each motion frame from subStream. Uses
+    path and patterns from ffmpeg section.
+    -->
+    <historyWriter>
+        <!-- Supported extensions https://docs.opencv.org/master/d4/da8/group__imgcodecs.html#ga288b8b3da0892bd651fce07b3bbd3a56 -->                
+        <extension>.jpg</extension>
+    </historyWriter>
+</configuration>
