@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    
+    <parent>
+        <groupId>com.codeferm</groupId>
+        <artifactId>alarmbian</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+    
+    <groupId>com.codeferm</groupId>
+    <artifactId>image</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <name>Image</name>
+    <url>https://github.com/sgjava/alarmbian/image</url>
+
+    <properties>
+        <commons-io.version>2.16.0</commons-io.version> 
+        <feign-jackson.version>12.5</feign-jackson.version>
+        <jaffree.version>2024.08.29</jaffree.version>
+    </properties>    
+            
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.14.0</version>
+                <configuration>
+                    <release>${java.version}</release>
+                    <compilerArgs>
+                        <arg>-proc:full</arg>
+                        <arg>-Xlint:-options</arg> 
+                        <arg>-Xlint:deprecation</arg>
+                        <arg>-Xlint:unchecked</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>    
+    
+    <dependencies>
+        <!-- Compile -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>        
+        <dependency>
+            <groupId>org.opencv</groupId>
+            <artifactId>opencv</artifactId>
+            <version>4.13.0</version> 
+            <scope>system</scope>
+            <systemPath>${opencv}</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>com.github.kokorin.jaffree</groupId>
+            <artifactId>jaffree</artifactId>
+            <version>${jaffree.version}</version>
+        </dependency>                               
+        <!-- Provided -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>            
+</project>

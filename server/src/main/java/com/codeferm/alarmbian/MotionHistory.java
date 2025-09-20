@@ -5,7 +5,6 @@ package com.codeferm.alarmbian;
 
 import com.codeferm.alarmbian.service.EventService;
 import com.codeferm.alarmbian.entity.Event;
-import com.codeferm.alarmbian.image.HistoryWriter;
 import com.codeferm.alarmbian.image.MatToImage;
 import java.nio.file.FileSystems;
 import java.sql.Timestamp;

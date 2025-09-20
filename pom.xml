@@ -18,6 +18,7 @@
     <url>https://github.com/sgjava/alarmbian</url>
     
     <modules>
+        <module>image</module>        
         <module>data</module>
         <module>server</module>
         <module>client</module>

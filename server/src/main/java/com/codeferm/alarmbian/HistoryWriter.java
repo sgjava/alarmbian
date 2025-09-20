@@ -1,8 +1,9 @@
 /*
  * Copyright (c) Steven P. Goldsmith. All rights reserved.
  */
-package com.codeferm.alarmbian.image;
+package com.codeferm.alarmbian;
 
+import com.codeferm.alarmbian.image.*;
 import com.codeferm.alarmbian.type.Convert;
 import com.codeferm.alarmbian.EventData;
 import java.io.File;
