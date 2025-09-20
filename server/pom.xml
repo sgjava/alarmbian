@@ -74,30 +74,6 @@
                     <argLine>-Djava.library.path=${opencv.lib}</argLine>
                 </configuration>            
             </plugin>
-            <!-- Do 'mvn initialize' once to install OpenCV jar you compiled -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-install-plugin</artifactId>
-                <version>3.1.2</version> 
-                <executions>
-                    <execution>
-                        <id>install-opencv</id>
-                        <phase>initialize</phase> 
-                        <goals>
-                            <goal>install-file</goal>
-                        </goals>
-                        <configuration>
-                            <file>${opencv}</file>
-                            <groupId>org.opencv</groupId>
-                            <artifactId>opencv</artifactId>
-                            <version>4.13.0</version>
-                            <packaging>jar</packaging>
-                            <localRepositoryPath>${user.home}/.m2/repository</localRepositoryPath>
-                            <generatePom>true</generatePom>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
         </plugins>
     </build>
 

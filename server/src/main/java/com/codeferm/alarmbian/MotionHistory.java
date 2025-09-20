@@ -37,7 +37,7 @@ public class MotionHistory {
     @Autowired
     private Environment env;
     /**
-     * Used to presist event.
+     * Used to persist event.
      */
     @Autowired
     private EventService eventService;

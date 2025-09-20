@@ -145,7 +145,7 @@ Add Supervisor job
 and change `opencv` as needed
 * Edit [POM](https://github.com/sgjava/alarmbian/blob/72e7bf59daf5b959c3bb6e710d9660549715e765/server/pom.xml#L23)
 and change `opencv.lib` as needed
-* `mvn initialize`
+* `mvn initialize -Pinstall-opencv`
 * `mvn clean install`
 * `cp server/target/server-1.0.0-SNAPSHOT.jar ~/.`
 * `cd`

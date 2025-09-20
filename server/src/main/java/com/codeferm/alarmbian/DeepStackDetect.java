@@ -77,8 +77,8 @@ public class DeepStackDetect {
     public void init() {
         log.debug("init");
         running = new AtomicBoolean(false);
-        convert = (Convert) new MatToImage().setExtension(extension);
-        ((MatToImage) convert).init();
+        // Change this line to properly use generics.
+        convert = new MatToImage().setExtension(extension);
     }
 
     /**
@@ -87,7 +87,9 @@ public class DeepStackDetect {
     @PreDestroy
     public void done() {
         log.debug("done");
-        ((MatToImage) convert).done();
+        if (convert instanceof MatToImage matToImage) {
+            matToImage.done();
+        }
     }
 
     /**

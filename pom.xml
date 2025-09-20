@@ -36,6 +36,43 @@
         <spring-cloud.version>2023.0.2</spring-cloud.version>
         <opencv>${user.home}/opencv/build/bin/opencv-4130.jar</opencv>
         <opencv.lib>${user.home}/opencv/build/lib</opencv.lib>
-        <opencv.version>4.13.0</opencv.version>    
-    </properties>        
+        <opencv.version>4.13.0</opencv.version>
+    </properties>
+    
+    <!-- Do 'mvn initialize -Pinstall-opencv' once to install OpenCV jar you compiled -->
+    <profiles>
+        <profile>
+            <id>install-opencv</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-install-plugin</artifactId>
+                        <version>3.1.2</version>
+                        <executions>
+                            <execution>
+                                <id>install-opencv</id>
+                                <phase>initialize</phase>
+                                <goals>
+                                    <goal>install-file</goal>
+                                </goals>
+                                <configuration>
+                                    <file>${opencv}</file>
+                                    <groupId>org.opencv</groupId>
+                                    <artifactId>opencv</artifactId>
+                                    <version>${opencv.version}</version>
+                                    <packaging>jar</packaging>
+                                    <localRepositoryPath>${user.home}/.m2/repository</localRepositoryPath>
+                                    <generatePom>true</generatePom>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>             
 </project>

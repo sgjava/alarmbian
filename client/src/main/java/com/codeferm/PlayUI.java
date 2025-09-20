@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) Steven P. Goldsmith. All rights reserved.
+ */
 package com.codeferm;
 
 import com.codeferm.alarmbian.entity.Event;

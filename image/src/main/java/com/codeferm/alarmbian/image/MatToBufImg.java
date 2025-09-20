@@ -20,7 +20,7 @@ import org.opencv.imgcodecs.Imgcodecs;
  * @version 1.0.0
  * @since 1.0.0
  */
-public class MatToBufImg extends Convert<Mat, BufferedImage> {
+public class MatToBufImg implements Convert<Mat, BufferedImage> {
 
     /**
      * Reuse mat to prevent heap and native memory leaks.

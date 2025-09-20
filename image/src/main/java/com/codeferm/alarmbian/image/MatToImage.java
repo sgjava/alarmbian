@@ -17,7 +17,7 @@ import org.opencv.imgcodecs.Imgcodecs;
  * @version 1.0.0
  * @since 1.0.0
  */
-public class MatToImage extends Convert<Mat, byte[]> {
+public class MatToImage implements Convert<Mat, byte[]> {
 
     /**
      * Reuse mat to prevent heap and native memory leaks.
@@ -29,6 +29,12 @@ public class MatToImage extends Convert<Mat, byte[]> {
      * Determines image format.
      */
     private String extension;
+
+    /**
+     * Init object.
+     */
+    public MatToImage() {
+    }
 
     public String getExtension() {
         return extension;
@@ -48,8 +54,7 @@ public class MatToImage extends Convert<Mat, byte[]> {
     }
 
     /**
-     * This may be slower than using new MatOfByte, but this will not leak heap
-     * and native memory.
+     * This may be slower than using new MatOfByte, but this will not leak heap and native memory.
      *
      * @param source Raw JPEG format image.
      * @return Mat format image.

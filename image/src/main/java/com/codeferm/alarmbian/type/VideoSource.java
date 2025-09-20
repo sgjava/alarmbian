@@ -9,8 +9,9 @@ package com.codeferm.alarmbian.type;
  * @author Steven P. Goldsmith
  * @version 1.0.0
  * @since 1.0.0
+ * @param <T> Type of frame returned
  */
-public abstract class VideoSource {
+public abstract class VideoSource<T> {
 
     /**
      * Image height.
@@ -21,11 +22,11 @@ public abstract class VideoSource {
      * Image width.
      */
     private int width;
-    
+
     /**
      * Open/read timeout in milliseconds.
      */
-    private int timeout;    
+    private int timeout;
 
     public int getHeight() {
         return height;
@@ -44,7 +45,7 @@ public abstract class VideoSource {
         this.width = width;
         return this;
     }
-    
+
     public int getTimeout() {
         return timeout;
     }
@@ -52,7 +53,7 @@ public abstract class VideoSource {
     public VideoSource setTimeout(int timeout) {
         this.timeout = timeout;
         return this;
-    }    
+    }
 
     /**
      * Device can be a camera URL, file name, V4L device number, etc. Implementation should handle any String validation and
@@ -71,8 +72,7 @@ public abstract class VideoSource {
     /**
      * Return typed frame.
      *
-     * @param <T> Type of frame.
      * @return Frame.
      */
-    public abstract <T> T getFrame();
+    public abstract T getFrame();
 }

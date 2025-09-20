@@ -12,7 +12,7 @@ package com.codeferm.alarmbian.type;
  * @version 1.0.0
  * @since 1.0.0
  */
-public abstract class Convert<S, D> {
+public interface Convert<S, D> {
     
     /**
      * Convert image from source type to destination type.
@@ -20,5 +20,5 @@ public abstract class Convert<S, D> {
      * @param source Source image.
      * @return Destination image.
      */
-    public abstract D execute(final S source);
+    D execute(final S source);
 }

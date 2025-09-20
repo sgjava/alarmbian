@@ -18,7 +18,7 @@ import javax.swing.JLabel;
  * @version 1.0.0
  * @since 1.0.0
  */
-class IconFormElement extends FormElement {
+public class IconFormElement extends FormElement<JLabel> {
 
     JLabel jLabel;
     String fileName;
@@ -42,12 +42,12 @@ class IconFormElement extends FormElement {
     }
 
     @Override
-    public Object getValue() {
+    public JLabel getValue() {
         return jLabel;
     }
 
     @Override
-    public void setValue(final Object value) {
-        jLabel.setIcon(new ImageIcon((BufferedImage) value));
+    public void setValue(final JLabel value) {
+        jLabel.setIcon(value.getIcon());
     }
 }

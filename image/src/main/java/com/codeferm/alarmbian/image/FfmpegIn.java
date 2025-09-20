@@ -24,7 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Read frames from FFMPEG source. We are using a future here, but still support synchronous VideoSource.getFrame. I found that
  * FrameConsumer leaks memory in ffmpeg process. See https://github.com/sgjava/leaker for more information. Do not use this class
- * until it's fixed.
+ * until it's fixed. Issue was tracked at https://github.com/kokorin/Jaffree/issues/295.
  *
  * @author Steven P. Goldsmith
  * @version 1.0.0

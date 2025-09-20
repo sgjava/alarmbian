@@ -19,7 +19,7 @@ import org.opencv.core.Mat;
  * @since 1.0.0
  */
 @Slf4j
-public class BufImgToMat extends Convert<BufferedImage, Mat> {
+public class BufImgToMat implements Convert<BufferedImage, Mat> {
 
     /**
      * Reuse mat to prevent heap and native memory leaks.

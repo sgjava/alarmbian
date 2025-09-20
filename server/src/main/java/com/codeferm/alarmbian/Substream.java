@@ -21,10 +21,11 @@ import org.springframework.stereotype.Component;
  * @author Steven P. Goldsmith
  * @version 1.0.0
  * @since 1.0.0
+ * @param <T> Type of frame.
  */
 @Component
 @Slf4j
-public class Substream {
+public class Substream<T> {
 
     /**
      * Spring environment.
@@ -44,7 +45,7 @@ public class Substream {
     /**
      * Video source.
      */
-    private VideoSource videoSource;
+    private VideoSource<T> videoSource;
     /**
      * Open/read timeout in milliseconds.
      */
@@ -70,11 +71,13 @@ public class Substream {
     /**
      * Open video source.
      */
+    @SuppressWarnings("unchecked")
     public void open() {
         // Setup video source for substream
         log.info(String.format("Starting substream %s", env.getProperty("substream.name")));
-        try {
-            videoSource = (VideoSource) Class.forName(env.getProperty("substream.class")).getDeclaredConstructor().
+        try {    
+            // Instantiate and cast to the generic VideoSource<T> type.
+            videoSource = (VideoSource<T>) Class.forName(env.getProperty("substream.class")).getDeclaredConstructor().
                     newInstance();
             videoSource.setTimeout(timeout);
         } catch (ClassNotFoundException | NoSuchMethodException | SecurityException | InstantiationException
@@ -87,7 +90,7 @@ public class Substream {
             final var inArgMap = new LinkedHashMap<String, String>();
             config.getProperties("substream.input.arg", inArgMap);
             ffmpegIn.setBin(env.getProperty("ffmpeg.bin")).setInputArgs(inArgMap);
-        } 
+        }
         videoSource.open(env.getProperty("substream.device"));
     }
 
@@ -95,16 +98,20 @@ public class Substream {
      * Close video source.
      */
     public void close() {
-        videoSource.close();
+        if (videoSource != null) {
+            videoSource.close();
+        }
     }
 
     /**
-     * Return image as a BufferedImage.
+     * Return typed frame.
      *
-     * @param <T> Type of frame.
-     * @return Frame..
+     * @return Frame.
      */
-    public <T> T getFrame() {
-        return videoSource.getFrame();
+    public T getFrame() {
+        if (videoSource != null) {
+            return videoSource.getFrame();
+        }
+        return null;
     }
 }
