@@ -48,9 +48,6 @@ import picocli.CommandLine.Option;
 @Slf4j
 @Command(name = "playUI")
 public class PlayUI implements Callable<Integer>, FormElementChangeListener {
-
-    @Option(names = {"-n", "--name"}, description = "Configuration file")
-    private String name = "application.properties";
     /**
      * Camera matrix.
      */
@@ -103,36 +100,6 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
      */
     @Value("${ffmpeg.remoteToPath}")
     private String remoteToPath;
-    /**
-     *
-     */
-    @Value("${ffmpeg.className}")
-    private String className;
-    /**
-     *
-     */
-    @Value("${ffmpeg.bin}")
-    private String bin;
-    /**
-     *
-     */
-    @Value("${ffmpeg.localPath}")
-    private String localPath;
-    /**
-     *
-     */
-    @Value("${ffmpeg.container}")
-    private String container;
-    /**
-     *
-     */
-    @Value("${ffmpeg.dirPattern}")
-    private String dirPattern;
-    /**
-     *
-     */
-    @Value("${ffmpeg.filePattern}")
-    private String filePattern;
     /**
      * Calibration array.
      */
