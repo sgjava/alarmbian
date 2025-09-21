@@ -93,13 +93,24 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     /**
      * Remote from path.
      */
-    @Value("${ffmpeg.remoteFromPath}")
+    @Value("${remoteFromPath}")
     private String remoteFromPath;
     /**
      * Remote from path.
      */
-    @Value("${ffmpeg.remoteToPath}")
+    @Value("${remoteToPath}")
     private String remoteToPath;
+    /**
+     * Play before event in seconds.
+     */
+    @Value("${playBefore}")
+    private Integer playBefore;    
+    /**
+     * Play after event in seconds.
+     */
+    @Value("${playAfter}")
+    private Integer playAfter;    
+    
     /**
      * Calibration array.
      */
@@ -267,8 +278,8 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 final var bufferStart = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
                 final var motionStart = images.get(index).get(0).getEventTime().toInstant();
                 final var motionStop = images.get(index).get(2).getEventTime().toInstant();
-                final var start = Duration.between(bufferStart, motionStart);
-                final var duration = Duration.between(motionStart, motionStop);
+                final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
+                final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
                 final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
                 play(fileName, start.getSeconds(), duration.getSeconds());
                 break;
