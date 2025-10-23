@@ -17,7 +17,6 @@ import org.opencv.core.Scalar;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
-import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 /**
@@ -31,11 +30,6 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class MotionHistory {
 
-    /**
-     * Spring environment.
-     */
-    @Autowired
-    private Environment env;
     /**
      * Used to persist event.
      */
@@ -51,6 +45,26 @@ public class MotionHistory {
     @Value("${device.name}")
     private String deviceName;
     /**
+     * History output path.
+     */
+    @Value("${history.output.path}")
+    private String outputPath;
+    /**
+     * FFMPEG dir pattern.
+     */
+    @Value("${ffmpeg.dir.pattern}")
+    private String dirPattern;
+    /**
+     * FFMPEG file pattern.
+     */
+    @Value("${ffmpeg.file.pattern}")
+    private String filePattern;
+    /**
+     * History writer file extension.
+     */
+    @Value("${history.writer.extension}")
+    private String extension;
+    /**
      * Mat used for configuration.
      */
     @Autowired
@@ -63,11 +77,10 @@ public class MotionHistory {
     public void init() {
         log.debug("init");
         // Configure history image writer
-        final var historyConvert = new MatToImage().setExtension(env.getProperty("history.writer.extension"));
+        final var historyConvert = new MatToImage().setExtension(extension);
         historyConvert.init();
-        historyWriter = new HistoryWriter().setConvert(historyConvert).setPath(String.format("%s%s%s", env.getProperty(
-                "ffmpeg.output.path"), FileSystems.getDefault().getSeparator(), deviceName)).setDirPattern(env.getProperty(
-                "ffmpeg.dir.pattern")).setFilePattern(env.getProperty("ffmpeg.file.pattern"));
+        historyWriter = new HistoryWriter(historyConvert, String.format("%s%s%s", outputPath, FileSystems.getDefault().
+                getSeparator(), deviceName), dirPattern, filePattern);
         historyWriter.init(mat);
     }
 

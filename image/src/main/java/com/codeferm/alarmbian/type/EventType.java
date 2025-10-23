@@ -75,5 +75,9 @@ public enum EventType {
     /**
      * When motion percent resets due to maximum percent change.
      */
-    HISTORY_RESET
+    HISTORY_RESET,
+    /**
+     * SMTP motion event.
+     */
+    SMTP_MOTION
 }

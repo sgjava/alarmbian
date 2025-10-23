@@ -33,11 +33,6 @@ public class Substream<T> {
     @Autowired
     private Environment env;
     /**
-     * Config bean.
-     */
-    @Autowired
-    private Config config;
-    /**
      * Device name.
      */
     @Value("${device.name}")
@@ -51,6 +46,11 @@ public class Substream<T> {
      */
     @Value("${substream.timeout}")
     private int timeout;
+    /**
+     * FFMPEG input arguments.
+     */
+    @Value("#{${substream.input.args}}")
+    private LinkedHashMap<String, String> inArgMap;    
 
     /**
      * Initialize.
@@ -86,9 +86,6 @@ public class Substream<T> {
         }
         // If using FfmpegIn class add necessary settings
         if (videoSource instanceof FfmpegIn ffmpegIn) {
-            // Convert ffmpeg arguments into Map
-            final var inArgMap = new LinkedHashMap<String, String>();
-            config.getProperties("substream.input.arg", inArgMap);
             ffmpegIn.setBin(env.getProperty("ffmpeg.bin")).setInputArgs(inArgMap);
         }
         videoSource.open(env.getProperty("substream.device"));

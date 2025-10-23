@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-
+    
     <parent>
         <groupId>com.codeferm</groupId>
         <artifactId>alarmbian</artifactId>
@@ -10,31 +9,13 @@
     </parent>
 
     <groupId>com.codeferm</groupId>
-    <artifactId>server</artifactId>
+    <artifactId>smtp</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
-
-    <name>Server</name>
-    <url>https://github.com/sgjava/alarmbian/server</url>
-
-    <properties>
-        <commons-io.version>2.16.0</commons-io.version> 
-        <feign-jackson.version>12.5</feign-jackson.version>
-        <jaffree.version>2024.08.29</jaffree.version>
-    </properties>
-
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>org.springframework.cloud</groupId>
-                <artifactId>spring-cloud-dependencies</artifactId>
-                <version>${spring-cloud.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
-
+    
+    <name>Smtp</name>
+    <url>https://github.com/sgjava/alarmbian/client</url>
+    
     <build>
         <plugins>
             <plugin>
@@ -76,47 +57,33 @@
             </plugin>
         </plugins>
     </build>
-
-    <dependencies>       
+    
+    <dependencies>
+        <!-- Compile -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
-        </dependency>             
-        <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-starter-openfeign</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.github.openfeign</groupId>
-            <artifactId>feign-jackson</artifactId>
+            <groupId>com.icegreen</groupId>
+            <artifactId>greenmail</artifactId>
+            <version>2.1.5</version>
         </dependency>
-        <dependency>
-            <groupId>commons-io</groupId>
-            <artifactId>commons-io</artifactId>
-            <version>${commons-io.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.github.kokorin.jaffree</groupId>
-            <artifactId>jaffree</artifactId>
-            <version>${jaffree.version}</version>
-        </dependency>       
         <dependency>
             <groupId>org.opencv</groupId>
             <artifactId>opencv</artifactId>
-            <version>4.13.0</version> 
-            <scope>system</scope>
-            <systemPath>${opencv}</systemPath>
+            <version>4.13.0</version>
         </dependency>
         <dependency>
             <groupId>com.codeferm</groupId>
             <artifactId>image</artifactId>
             <version>1.0.0-SNAPSHOT</version>
-        </dependency>                
+        </dependency>            
         <dependency>
             <groupId>com.codeferm</groupId>
             <artifactId>data</artifactId>
             <version>1.0.0-SNAPSHOT</version>
-        </dependency>
+        </dependency>                    
         <!-- Provided -->
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -128,7 +95,7 @@
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <scope>runtime</scope>
-        </dependency>        
+        </dependency>         
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -140,7 +107,6 @@
                     <artifactId>junit-vintage-engine</artifactId>
                 </exclusion>
             </exclusions>
-        </dependency>            
+        </dependency>                                      
     </dependencies>
-
-</project>
+</project>         

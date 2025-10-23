@@ -1,7 +1,7 @@
 /*
  * Copyright (c) Steven P. Goldsmith. All rights reserved.
  */
-package com.codeferm;
+package com.codeferm.alarmbian;
 
 import com.codeferm.alarmbian.entity.Event;
 import com.codeferm.alarmbian.image.MatToBufImg;
@@ -41,8 +41,11 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 /**
+ * Alarmbian player UI based on UI Booster.
  *
- * @author servadmin
+ * @author Steven P. Goldsmith
+ * @version 1.0.0
+ * @since 1.0.0
  */
 @Component
 @Slf4j

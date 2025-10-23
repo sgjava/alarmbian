@@ -4,7 +4,7 @@
 package com.codeferm;
 
 import com.codeferm.alarmbian.EventData;
-import com.codeferm.alarmbian.App;
+import com.codeferm.alarmbian.Server;
 import static com.codeferm.alarmbian.type.EventType.START_UP;
 import java.time.Instant;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +17,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationEventPublisher;
 
 /**
- * This boots container and starts App event loop.
+ * This boots container and starts event loop.
  *
  * @author Steven P. Goldsmith
  * @version 1.0.0
@@ -25,7 +25,7 @@ import org.springframework.context.ApplicationEventPublisher;
  */
 @SpringBootApplication
 @Slf4j
-public class Boot implements CommandLineRunner {
+public class ServerBoot implements CommandLineRunner {
 
     @Autowired
     private ApplicationContext context;
@@ -38,7 +38,7 @@ public class Boot implements CommandLineRunner {
      * App bean.
      */
     @Autowired
-    private App app;
+    private Server app;
 
     /**
      * Run app.
@@ -63,6 +63,6 @@ public class Boot implements CommandLineRunner {
     public static void main(final String[] args) {
         // Load the OpenCV system library
         System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
-        SpringApplication.run(Boot.class, args);
+        SpringApplication.run(ServerBoot.class, args);
     }
 }

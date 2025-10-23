@@ -3,16 +3,19 @@
  */
 package com.codeferm.alarmbian;
 
-import com.codeferm.alarmbian.image.*;
+import com.codeferm.alarmbian.image.MatToImage;
 import com.codeferm.alarmbian.type.Convert;
-import com.codeferm.alarmbian.EventData;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
@@ -25,6 +28,7 @@ import org.opencv.core.Mat;
  * @version 1.0.0
  * @since 1.0.0
  */
+@Data
 @Slf4j
 public class HistoryWriter {
 
@@ -61,62 +65,21 @@ public class HistoryWriter {
      */
     private Instant timestamp;
 
-    public Mat getMat() {
-        return mat;
-    }
-
-    public HistoryWriter setMat(final Mat mat) {
-        this.mat = mat;
-        return this;
-    }
-
-    public String getPath() {
-        return path;
-    }
-
-    public HistoryWriter setPath(final String path) {
-        this.path = path;
-        return this;
-    }
-
-    public Convert<Mat, byte[]> getConvert() {
-        return convert;
-    }
-
-    public HistoryWriter setConvert(final Convert<Mat, byte[]> convert) {
+    @Builder
+    public HistoryWriter(final Convert<Mat, byte[]> convert, final String path, final String dirPattern, final String filePattern) {
         this.convert = convert;
-        return this;
-    }
-
-    public String getDirPattern() {
-        return dirPattern;
-    }
-
-    public HistoryWriter setDirPattern(final String dirPattern) {
+        this.path = path;
         this.dirPattern = dirPattern;
-        dirFormatter = DateTimeFormatter.ofPattern(dirPattern).withZone(ZoneId.systemDefault());
-        return this;
-    }
-
-    public String getFilePattern() {
-        return filePattern;
-    }
-
-    public HistoryWriter setFilePattern(final String filePattern) {
         this.filePattern = filePattern;
+        dirFormatter = DateTimeFormatter.ofPattern(dirPattern).withZone(ZoneId.systemDefault());
         fileFormatter = DateTimeFormatter.ofPattern(filePattern).withZone(ZoneId.systemDefault());
-        return this;
     }
 
-    public Instant getTimestamp() {
-        return timestamp;
-    }
-
-    public HistoryWriter setTimestamp(final Instant timestamp) {
-        this.timestamp = timestamp;
-        return this;
-    }
-
+    /**
+     * Initialize class.
+     *
+     * @param source Source Mat.
+     */
     public void init(final Mat source) {
         log.debug("init");
         mat = Mat.zeros(source.height(), source.width(), CvType.CV_8UC1);

@@ -16,7 +16,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 import static com.codeferm.alarmbian.type.EventType.RECORD_STOP;
 import org.opencv.core.Mat;
@@ -34,16 +33,6 @@ import org.springframework.context.event.EventListener;
 public class Mainstream {
 
     /**
-     * Spring environment.
-     */
-    @Autowired
-    private Environment env;
-    /**
-     * Config bean.
-     */
-    @Autowired
-    private Config config;
-    /**
      * Event publisher.
      */
     @Autowired
@@ -58,6 +47,61 @@ public class Mainstream {
      */
     @Value("${mainstream.length}")
     private Long length;
+    /**
+     * Main stream name.
+     */
+    @Value("${mainstream.name}")
+    private String name;
+    /**
+     * Main stream class.
+     */
+    @Value("${mainstream.class}")
+    private String className;
+    /**
+     * Main stream device.
+     */
+    @Value("${mainstream.device}")
+    private String device;
+    /**
+     * Main stream file suffix.
+     */
+    @Value("${mainstream.file.suffix}")
+    private String fileSuffix;
+    /**
+     * FFMPEG bin.
+     */
+    @Value("${ffmpeg.bin}")
+    private String bin;
+    /**
+     * FFMPEG output path.
+     */
+    @Value("${ffmpeg.output.path}")
+    private String outputPath;
+    /**
+     * FFMPEG container.
+     */
+    @Value("${ffmpeg.container}")
+    private String container;
+    /**
+     * FFMPEG dir pattern.
+     */
+    @Value("${ffmpeg.dir.pattern}")
+    private String dirPattern;
+    /**
+     * FFMPEG file pattern.
+     */
+    @Value("${ffmpeg.file.pattern}")
+    private String filePattern;
+    /**
+     * FFMPEG input arguments.
+     */
+    @Value("#{${mainstream.input.args}}")
+    private LinkedHashMap<String, String> inArgMap;
+    /**
+     * FFMPEG output arguments.
+     */
+    @Value("#{${mainstream.output.args}}")
+    private LinkedHashMap<String, String> outArgMap;
     /**
      * Video stream used to record.
      */
@@ -106,27 +150,19 @@ public class Mainstream {
      * @param timestamp Timestamp to use in file name.
      */
     public void start(final Instant timestamp) {
-        log.info(String.format("Starting mainstream %s", env.getProperty("mainstream.name")));
+        log.info(String.format("Starting mainstream %s", name));
         try {
-            recordStream = ((Record) Class.forName(env.getProperty("mainstream.class")).getDeclaredConstructor().newInstance());
+            recordStream = ((Record) Class.forName(className).getDeclaredConstructor().newInstance());
         } catch (ClassNotFoundException | NoSuchMethodException | SecurityException | InstantiationException
                 | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
             throw new RuntimeException(e);
         }
         // If using FfmpegOut class add necessary settings
         if (recordStream instanceof FfmpegOut ffmpegOut) {
-            // Convert ffmpeg arguments into Map
-            final var inArgMap = new LinkedHashMap<String, String>();
-            config.getProperties("mainstream.input.arg", inArgMap);
-            // Convert ffmpeg arguments into Map
-            final var outArgMap = new LinkedHashMap<String, String>();
-            config.getProperties("mainstream.output.arg", outArgMap);
             // Configure mainstream for recording
-            ffmpegOut.setDevice(env.getProperty("mainstream.device")).setBin(env.getProperty("ffmpeg.bin")).setInputArgs(inArgMap).
-                    setOutputArgs(outArgMap).setPath(String.format("%s%s%s", env.getProperty("ffmpeg.output.path"),
-                    FileSystems.getDefault().getSeparator(), deviceName)).setContainer(env.getProperty("ffmpeg.container")).
-                    setDirPattern(env.getProperty("ffmpeg.dir.pattern")).setFileSuffix(env.getProperty("mainstream.file.suffix")).
-                    setFilePattern(env.getProperty("ffmpeg.file.pattern"));
+            ffmpegOut.setDevice(device).setBin(bin).setInputArgs(inArgMap).setOutputArgs(outArgMap).setPath(String.format("%s%s%s",
+                    outputPath, FileSystems.getDefault().getSeparator(), deviceName)).setContainer(container).setDirPattern(
+                    dirPattern).setFileSuffix(fileSuffix).setFilePattern(filePattern);
             recordStream.start(timestamp);
             applicationEventPublisher.publishEvent(new EventData<>(RECORD_START, timestamp, ffmpegOut.getFileName()));
         } else {

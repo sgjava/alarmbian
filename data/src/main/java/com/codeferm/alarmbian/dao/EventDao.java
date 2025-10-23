@@ -29,7 +29,7 @@ public interface EventDao extends ListCrudRepository<Event, Long> {
      * @return List of Event entities.
      */
     @Query(value
-            = "select ID, DEVICE_NAME, EVENT_TYPE, EVENT_DATA, EVENT_TIME from EVENT where DEVICE_NAME = :deviceName and EVENT_TYPE in ('RECORD_START', 'HISTORY_STOP') and EVENT_TIME <= :timestamp  order by ID")
+            = "select ID, DEVICE_NAME, EVENT_TYPE, EVENT_DATA, EVENT_TIME from EVENT where DEVICE_NAME = :deviceName and EVENT_TYPE in ('RECORD_START', 'HISTORY_STOP', 'SMTP_MOTION') and EVENT_TIME <= :timestamp  order by ID")
     List<Event> findByTime(final String deviceName, final Timestamp timestamp);
 
     /**

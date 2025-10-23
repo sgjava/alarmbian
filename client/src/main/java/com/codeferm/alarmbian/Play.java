@@ -1,7 +1,7 @@
 /*
  * Copyright (c) Steven P. Goldsmith. All rights reserved.
  */
-package com.codeferm;
+package com.codeferm.alarmbian;
 
 import com.codeferm.alarmbian.service.EventService;
 import com.codeferm.alarmbian.entity.Event;

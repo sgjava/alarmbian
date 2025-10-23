@@ -19,6 +19,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.sql.Timestamp;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.opencv.core.Mat;
 import org.opencv.core.Size;
@@ -51,11 +52,6 @@ public class MotionDetect {
     @Autowired
     private Environment env;
     /**
-     * Config bean.
-     */
-    @Autowired
-    private Config config;
-    /**
      * Event publisher.
      */
     @Autowired
@@ -74,6 +70,41 @@ public class MotionDetect {
      */
     @Value("${device.name}")
     private String deviceName;
+    /**
+     * KSize for motion detection.
+     */
+    @Value("#{'${motion.ksize}'.split(',')}")
+    private List<Double> kSize;
+    /**
+     * Max threshold.
+     */
+    @Value("${motion.max.threshold:255.0}")
+    private double maxThreshold;
+    /**
+     * Alpha.
+     */
+    @Value("${motion.alpha:0.03}")
+    private double alpha;
+    /**
+     * Black threshold.
+     */
+    @Value("${motion.black.threshold:25.0}")
+    private double blackThreshold;
+    /**
+     * Max change.
+     */
+    @Value("${motion.max.change:25.0}")
+    private double maxChange;
+    /**
+     * Start threshold.
+     */
+    @Value("${motion.start.threshold:1.0}")
+    private double startThreshold;
+    /**
+     * Stop threshold.
+     */
+    @Value("${motion.stop.threshold:0.0}")
+    private double stopThreshold;
     /**
      * Motion start flag.
      */
@@ -95,8 +126,6 @@ public class MotionDetect {
     public void init() {
         log.debug("init");
         motionStart = false;
-        // Configure motion detecion
-        var kSize = config.getList("motion.ksize");
         final var ignoreMaskName = env.getProperty("motion.ignore.mask");
         Mat ignoreMask = null;
         if (ignoreMaskName != null && !ignoreMaskName.isBlank()) {
@@ -105,12 +134,10 @@ public class MotionDetect {
             Imgproc.cvtColor(ignoreMask, ignoreMask, Imgproc.COLOR_BGR2GRAY);
         }
         try {
-            motion = ((Motion) Class.forName(env.getProperty("motion.class")).getDeclaredConstructor().newInstance()).
-                    setkSize(new Size(kSize.get(0), kSize.get(1))).setAlpha(config.getDouble("motion.alpha")).setBlackThreshold(
-                    config.getDouble("motion.black.threshold")).
-                    setMaxThreshold(config.getDouble("motion.max.threshold")).setMaxChange(config.getDouble("motion.max.change")).
-                    setStartThreshold(config.getDouble("motion.start.threshold")).
-                    setStopThreshold(config.getDouble("motion.stop.threshold")).setIgnoreMask(ignoreMask);
+            motion = ((Motion) Class.forName(env.getProperty("motion.class")).getDeclaredConstructor().newInstance()).setkSize(
+                    new Size(kSize.get(0), kSize.get(1))).setAlpha(alpha).setBlackThreshold(blackThreshold).setMaxThreshold(
+                    maxThreshold).setMaxChange(maxChange).setStartThreshold(startThreshold).setStopThreshold(stopThreshold).
+                    setIgnoreMask(ignoreMask);
             motion.init(mat);
         } catch (ClassNotFoundException | NoSuchMethodException | SecurityException | InstantiationException
                 | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
@@ -148,7 +175,7 @@ public class MotionDetect {
     }
 
     /**
-     * Receives Mat frame and piblish Mat motionEvent and Mat historyEvent.
+     * Receives Mat frame and publish Mat motionEvent and Mat historyEvent.
      *
      * @param event Mat data.
      */

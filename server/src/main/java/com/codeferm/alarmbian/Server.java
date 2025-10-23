@@ -21,11 +21,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.event.EventListener;
-import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 /**
- * App bean publishes off BufferedImage event that drives the detection logic.
+ * Video server publishes off BufferedImage event that drives the detection logic.
  *
  * @author Steven P. Goldsmith
  * @version 1.0.0
@@ -33,13 +32,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Slf4j
-public class App {
+public class Server {
 
-    /**
-     * Spring environment.
-     */
-    @Autowired
-    private Environment env;
     /**
      * Event publisher.
      */
