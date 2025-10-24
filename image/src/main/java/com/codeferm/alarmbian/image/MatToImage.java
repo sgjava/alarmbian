@@ -69,7 +69,11 @@ public class MatToImage implements Convert<Mat, byte[]> {
      * Release Mat memory.
      */
     public void done() {
-        mat.release();
-        params.release();
+        if (mat != null) {
+            mat.release();
+        }
+        if (params != null) {
+            params.release();
+        }
     }
 }
