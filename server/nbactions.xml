@@ -12,4 +12,31 @@
             <spring-boot.run.jvmArguments>-Djava.library.path=${user.home}/opencv/build/lib</spring-boot.run.jvmArguments>
         </properties>
     </action>
+    
+    <action>
+        <actionName>debug</actionName>
+        <packagings>
+            <packaging>jar</packaging>
+        </packagings>
+        <goals>
+            <goal>spring-boot:run</goal>
+        </goals>
+        <properties>
+            <spring-boot.run.jvmArguments>-Djava.library.path=${user.home}/opencv/build/lib -agentlib:jdwp=transport=dt_socket,server=n,address=${jpda.address}</spring-boot.run.jvmArguments>
+            <jpda.listen>true</jpda.listen>
+        </properties>
+    </action>
+    
+    <action>
+        <actionName>profile</actionName>
+        <packagings>
+            <packaging>jar</packaging>
+        </packagings>
+        <goals>
+            <goal>spring-boot:run</goal>
+        </goals>
+        <properties>
+            <spring-boot.run.jvmArguments>-Djava.library.path=${user.home}/opencv/build/lib -agentpath:${user.home}/netbeans/profiler/lib/deployed/jdk16/linux-amd64/libprofilerinterface.so=${user.home}/netbeans/profiler/lib,5140,10</spring-boot.run.jvmArguments>
+        </properties>
+    </action>
 </actions>
