@@ -4,6 +4,9 @@
 package com.codeferm.alarmbian.image;
 
 import com.codeferm.alarmbian.type.Detect;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
@@ -21,6 +24,12 @@ import org.opencv.imgproc.Imgproc;
  * @since 1.0.0
  */
 @Slf4j
+// Add @Getter and @Setter to generate boilerplate for all non-final fields
+@Getter
+// @Setter is used here for fields that have setters in the original code
+@Setter
+// @Accessors(chain = true) is used to make all setters return 'this' (the object instance)
+@Accessors(chain = true)
 public class Motion extends Detect {
 
     /**
@@ -54,6 +63,7 @@ public class Motion extends Detect {
     /**
      * Work image.
      */
+    // @Getter is kept for final fields that had a getter, but @Setter is omitted
     private final Mat workImg;
     /**
      * Moving average image.
@@ -83,121 +93,6 @@ public class Motion extends Detect {
      * Ignore mask.
      */
     private Mat ignoreMask;
-
-    public Mat getWorkImg() {
-        return workImg;
-    }
-
-    public Mat getBwImg() {
-        return bwImg;
-    }
-
-    public Mat getDiffImg() {
-        return diffImg;
-    }
-
-    public Mat getScaleImg() {
-        return scaleImg;
-    }
-
-    public Size getkSize() {
-        return kSize;
-    }
-
-    public Motion setkSize(final Size kSize) {
-        this.kSize = kSize;
-        return this;
-    }
-
-    public double getAlpha() {
-        return alpha;
-    }
-
-    public Motion setAlpha(final double alpha) {
-        this.alpha = alpha;
-        return this;
-    }
-
-    public double getBlackThreshold() {
-        return blackThreshold;
-    }
-
-    public Motion setBlackThreshold(final double blackThreshold) {
-        this.blackThreshold = blackThreshold;
-        return this;
-    }
-
-    public double getMaxThreshold() {
-        return maxThreshold;
-    }
-
-    public Motion setMaxThreshold(final double maxThreshold) {
-        this.maxThreshold = maxThreshold;
-        return this;
-    }
-
-    public double getMaxChange() {
-        return maxChange;
-    }
-
-    public Motion setMaxChange(final double maxChange) {
-        this.maxChange = maxChange;
-        return this;
-    }
-
-    public double getStartThreshold() {
-        return startThreshold;
-    }
-
-    public Motion setStartThreshold(final double startThreshold) {
-        this.startThreshold = startThreshold;
-        return this;
-    }
-
-    public double getStopThreshold() {
-        return stopThreshold;
-    }
-
-    public Motion setStopThreshold(final double stopThreshold) {
-        this.stopThreshold = stopThreshold;
-        return this;
-    }
-
-    public Mat getMovingAvgImg() {
-        return movingAvgImg;
-    }
-
-    public Motion setMovingAvgImg(final Mat movingAvgImg) {
-        this.movingAvgImg = movingAvgImg;
-        return this;
-    }
-
-    public double getTotalPixels() {
-        return totalPixels;
-    }
-
-    public Motion setTotalPixels(final double totalPixels) {
-        this.totalPixels = totalPixels;
-        return this;
-    }
-
-    public double getMotionPercent() {
-        return motionPercent;
-    }
-
-    public Motion setMotionPercent(final double motionPercent) {
-        this.motionPercent = motionPercent;
-        return this;
-    }
-
-    public Mat getIgnoreMask() {
-        return ignoreMask;
-    }
-
-    public Motion setIgnoreMask(Mat ignoreMask) {
-        this.ignoreMask = ignoreMask;
-        return this;
-    }
 
     public Motion() {
         bwImg = new Mat();

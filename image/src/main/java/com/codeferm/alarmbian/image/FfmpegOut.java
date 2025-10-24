@@ -20,17 +20,24 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
+import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Use ffmpeg to record stream to file. You should copy all codecs since this is
- * the least CPU intensive as no transcoding occurs.
+ * Use ffmpeg to record stream to file. You should copy all codecs since this is the least CPU intensive as no transcoding occurs.
  *
  * @author Steven P. Goldsmith
  * @version 1.0.0
  * @since 1.0.0
  */
 @Slf4j
+@Getter
+@Setter
+@ToString(callSuper = true)
+@Accessors(chain = true) // Enables method chaining for setters
 public class FfmpegOut extends Record implements ProgressListener {
 
     /**
@@ -90,105 +97,23 @@ public class FfmpegOut extends Record implements ProgressListener {
      */
     private DateTimeFormatter fileFormatter;
 
-    public FFmpegResultFuture getFuture() {
-        return future;
-    }
-
-    public FfmpegOut setFuture(final FFmpegResultFuture future) {
-        this.future = future;
-        return this;
-    }
-
-    public String getDevice() {
-        return device;
-    }
-
-    public FfmpegOut setDevice(final String device) {
-        this.device = device;
-        return this;
-    }
-
-    public String getPath() {
-        return path;
-    }
-
-    public FfmpegOut setPath(final String path) {
-        this.path = path;
-        return this;
-    }
-
-    public String getContainer() {
-        return container;
-    }
-
-    public FfmpegOut setContainer(final String container) {
-        this.container = container;
-        return this;
-    }
-
-    public String getFileName() {
-        return fileName;
-    }
-
-    public String getDirPattern() {
-        return dirPattern;
-    }
-
+    // Custom setter for dirPattern to include DateTimeFormatter initialization
     public FfmpegOut setDirPattern(final String dirPattern) {
         this.dirPattern = dirPattern;
-        dirFormatter = DateTimeFormatter.ofPattern(dirPattern).withZone(ZoneId.systemDefault());
+        this.dirFormatter = DateTimeFormatter.ofPattern(dirPattern).withZone(ZoneId.systemDefault());
         return this;
     }
 
-    public String getFileSuffix() {
-        return fileSuffix;
-    }
-
-    public FfmpegOut setFileSuffix(final String fileSuffix) {
-        this.fileSuffix = fileSuffix;
-        return this;
-    }
-
-    public String getFilePattern() {
-        return filePattern;
-    }
-
+    // Custom setter for filePattern to include DateTimeFormatter initialization
     public FfmpegOut setFilePattern(final String filePattern) {
         this.filePattern = filePattern;
-        fileFormatter = DateTimeFormatter.ofPattern(filePattern).withZone(ZoneId.systemDefault());
-        return this;
-    }
-
-    public String getBin() {
-        return bin;
-    }
-
-    public FfmpegOut setBin(final String bin) {
-        this.bin = bin;
-        return this;
-    }
-
-    public Map<String, String> getInputArgs() {
-        return inputArgs;
-    }
-
-    public FfmpegOut setInputArgs(final Map<String, String> inputArgs) {
-        this.inputArgs = inputArgs;
-        return this;
-    }
-
-    public Map<String, String> getOutputArgs() {
-        return outputArgs;
-    }
-
-    public FfmpegOut setOutputArgs(final Map<String, String> outputArgs) {
-        this.outputArgs = outputArgs;
+        this.fileFormatter = DateTimeFormatter.ofPattern(filePattern).withZone(ZoneId.systemDefault());
         return this;
     }
 
     @Override
     public void onProgress(FFmpegProgress progress) {
-        //logger.info(String.format("FPS %.1f", progress.getFps()));
+        log.debug("FPS {}", progress.getFps());
     }
 
     /**
@@ -208,7 +133,7 @@ public class FfmpegOut extends Record implements ProgressListener {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-            // Construct file name 
+            // Construct file name
             fileName = String.
                     format("%s%s%s-%s.%s", dirName, File.separator, fileFormatter.format(timestamp), fileSuffix, container);
             log.info(String.format("Recording %s starting", fileName));

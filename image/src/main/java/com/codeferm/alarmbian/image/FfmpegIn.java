@@ -19,6 +19,10 @@ import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -32,6 +36,10 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Deprecated(since = "1.0.0", forRemoval = true)
+@Getter
+@Setter
+@Accessors(chain = true) // Enables method chaining for setters
+@NoArgsConstructor // Replaces the manual no-arg constructor
 public class FfmpegIn extends VideoSource implements FrameConsumer {
 
     /**
@@ -53,58 +61,12 @@ public class FfmpegIn extends VideoSource implements FrameConsumer {
     /**
      * Frame queue.
      */
-    private BlockingQueue<BufferedImage> frameQueue;
+    // Initialize the queue here, @NoArgsConstructor handles the default constructor
+    private BlockingQueue<BufferedImage> frameQueue = new ArrayBlockingQueue<>(100);
 
-    /**
-     * Initialize queue.
-     */
-    public FfmpegIn() {
-        frameQueue = new ArrayBlockingQueue<>(100);
-    }
-
-    public FFmpegResultFuture getFuture() {
-        return future;
-    }
-
-    public FfmpegIn setFuture(final FFmpegResultFuture future) {
-        this.future = future;
-        return this;
-    }
-
-    public String getBin() {
-        return bin;
-    }
-
-    public FfmpegIn setBin(final String bin) {
-        this.bin = bin;
-        return this;
-    }
-
-    public Map<String, String> getInputArgs() {
-        return inputArgs;
-    }
-
-    public FfmpegIn setInputArgs(final Map<String, String> inputArgs) {
-        this.inputArgs = inputArgs;
-        return this;
-    }
-
-    public Map<String, String> getOutputArgs() {
-        return outputArgs;
-    }
-
-    public FfmpegIn setOutputArgs(final Map<String, String> outputArgs) {
-        this.outputArgs = outputArgs;
-        return this;
-    }
-
-    public BlockingQueue<BufferedImage> getFrameQueue() {
-        return frameQueue;
-    }
-
-    public FfmpegIn setFrameQueue(final BlockingQueue<BufferedImage> frameQueue) {
-        this.frameQueue = frameQueue;
-        return this;
+    @Override
+    public void consumeStreams(List<Stream> streams) {
+        // All stream types except video are disabled. just ignore
     }
 
     /**
@@ -143,17 +105,13 @@ public class FfmpegIn extends VideoSource implements FrameConsumer {
         BufferedImage frame;
         // Wait for first frame
         try {
-            frame = frameQueue.poll​(getTimeout(), TimeUnit.MILLISECONDS);
+            frame = frameQueue.poll(getTimeout(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
+        // Use chaining setters inherited from VideoSource
         setWidth(frame.getWidth()).setHeight(frame.getHeight());
         return !frameQueue.isEmpty();
-    }
-
-    @Override
-    public void consumeStreams(List<Stream> streams) {
-        // All stream types except video are disabled. just ignore
     }
 
     /**
@@ -180,9 +138,10 @@ public class FfmpegIn extends VideoSource implements FrameConsumer {
     public BufferedImage getFrame() {
         BufferedImage frame;
         try {
-            frame = frameQueue.poll​(getTimeout(), TimeUnit.MILLISECONDS);
+            frame = frameQueue.poll(getTimeout(), TimeUnit.MILLISECONDS);
             if (!frameQueue.isEmpty()) {
-                log.warn(String.format("Frame queue %d", frameQueue.size()));
+                // Use SLF4J parameter substitution
+                log.warn("Frame queue {}", frameQueue.size());
             }
         } catch (InterruptedException e) {
             throw new RuntimeException(e);

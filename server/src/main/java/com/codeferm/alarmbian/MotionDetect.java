@@ -134,7 +134,7 @@ public class MotionDetect {
             Imgproc.cvtColor(ignoreMask, ignoreMask, Imgproc.COLOR_BGR2GRAY);
         }
         try {
-            motion = ((Motion) Class.forName(env.getProperty("motion.class")).getDeclaredConstructor().newInstance()).setkSize(
+            motion = ((Motion) Class.forName(env.getProperty("motion.class")).getDeclaredConstructor().newInstance()).setKSize(
                     new Size(kSize.get(0), kSize.get(1))).setAlpha(alpha).setBlackThreshold(blackThreshold).setMaxThreshold(
                     maxThreshold).setMaxChange(maxChange).setStartThreshold(startThreshold).setStopThreshold(stopThreshold).
                     setIgnoreMask(ignoreMask);
