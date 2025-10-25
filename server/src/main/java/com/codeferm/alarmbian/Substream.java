@@ -66,6 +66,7 @@ public class Substream<T> {
     @PreDestroy
     public void done() {
         log.debug("done");
+        close();
     }
 
     /**

@@ -111,7 +111,6 @@ public class Server {
     @PreDestroy
     public void done() {
         log.debug("done");
-        substream.close();
         if (bufImgToMat != null) {
             bufImgToMat.done();
         }

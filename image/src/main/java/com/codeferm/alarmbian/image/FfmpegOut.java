@@ -113,7 +113,7 @@ public class FfmpegOut extends Record implements ProgressListener {
 
     @Override
     public void onProgress(FFmpegProgress progress) {
-        log.debug("FPS {}", progress.getFps());
+        log.trace("FPS {}", progress.getFps());
     }
 
     /**

@@ -14,7 +14,7 @@
     <logger name="com.github.kokorin.jaffree" level="info" />
     <logger name="com.github.kokorin.jaffree.process.BaseStdReader" level="warn" />
 
-    <root level="info">
+    <root level="debug">
         <appender-ref ref="STDOUT" />
     </root>
 </configuration>
