@@ -5,40 +5,45 @@ package com.codeferm.alarmbian;
 
 import de.milchreis.uibooster.model.FormElement;
 import de.milchreis.uibooster.model.FormElementChangeListener;
-import java.awt.image.BufferedImage;
 import javax.swing.Box;
 import javax.swing.ImageIcon;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 
-/**
- * Form element that doesn't resize like ImageFormElement.
- *
- * @author Steven P. Goldsmith
- * @version 1.0.0
- * @since 1.0.0
- */
 public class IconFormElement extends FormElement<JLabel> {
 
-    JLabel jLabel;
-    String fileName;
+    private final ImageIcon imageIcon;
+    private JLabel jLabel;
 
-    public IconFormElement(String fileName) {
+    /**
+     * Constructs the element using a pre-processed ImageIcon.
+     *
+     * @param icon The resized and converted ImageIcon.
+     */
+    public IconFormElement(ImageIcon icon) {
+        // Pass a default name or null to the superclass if required
         super(null);
-        this.fileName = fileName;
+        this.imageIcon = icon;
+        // Throw an error early if the icon is null to prevent later crashes
+        if (icon == null) {
+            throw new IllegalArgumentException("ImageIcon cannot be null.");
+        }
     }
 
     @Override
     public JComponent createComponent(final FormElementChangeListener onChange) {
         Box box = Box.createVerticalBox();
-        jLabel = new JLabel(new ImageIcon(fileName));
+        // Use the stored ImageIcon, which is already ready
+        jLabel = new JLabel(this.imageIcon);
         box.add(jLabel);
         return box;
     }
 
     @Override
     public void setEnabled(final boolean enable) {
-        jLabel.setEnabled(enable);
+        if (jLabel != null) {
+            jLabel.setEnabled(enable);
+        }
     }
 
     @Override
@@ -48,6 +53,8 @@ public class IconFormElement extends FormElement<JLabel> {
 
     @Override
     public void setValue(final JLabel value) {
-        jLabel.setIcon(value.getIcon());
+        if (jLabel != null && value != null) {
+            jLabel.setIcon(value.getIcon());
+        }
     }
 }

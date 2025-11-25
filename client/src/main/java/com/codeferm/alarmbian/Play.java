@@ -5,28 +5,15 @@ package com.codeferm.alarmbian;
 
 import com.codeferm.alarmbian.service.EventService;
 import com.codeferm.alarmbian.entity.Event;
-import java.io.DataInputStream;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import com.codeferm.alarmbian.type.EventType;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.opencv.calib3d.Calib3d;
-import org.opencv.core.CvType;
-import org.opencv.core.Mat;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -54,6 +41,17 @@ public class Play {
     @Autowired
     private EventService eventService;
     /**
+     * Play before event in seconds.
+     */
+    @Value("${playBefore}")
+    private Integer playBefore;
+    /**
+     * Play after event in seconds.
+     */
+    @Value("${playAfter}")
+    private Integer playAfter;
+
+    /**
      * Motion event sequence
      */
     final String[] motionEvents = new String[]{"MOTION_START", "HISTORY_STOP", "MOTION_STOP"};
@@ -62,7 +60,7 @@ public class Play {
      * Format timestamp to something human readable.
      *
      * @param timestamp Input timestamp.
-     * 
+     *
      * @return Formatted String.
      */
     public String formatTimestamp(final Timestamp timestamp) {
@@ -74,7 +72,7 @@ public class Play {
      *
      * @param start Start timestamp.
      * @param end End timestamp.
-     * 
+     *
      * @return String formatted to HH:MM:SS.
      */
     public String formatDuration(final Timestamp start, final Timestamp end) {
@@ -96,7 +94,7 @@ public class Play {
      *
      * @return List of List of events.
      */
-    public List<List<Event>> loadEvents() {
+    public List<List<Event>> loadMotionEvents() {
         final var list = findMotionEvents();
         final var images = new ArrayList<List<Event>>();
         var subList = new ArrayList<Event>();
@@ -135,32 +133,13 @@ public class Play {
      *
      * @return Map of events by file name.
      */
-    public Map<String, Event> loadBuffers() {
+    public Map<String, Event> loadMotionBuffers() {
         final var list = findBuffers();
         final var buffers = new HashMap<String, Event>();
         list.forEach(events -> {
             buffers.put(events.getEventData(), events);
         });
         return buffers;
-    }
-
-    /**
-     * Return list of File recursive.
-     *
-     * @param path Path to start.
-     * @param fromPath Replace from substring.
-     * @param toPath Replace to substring.
-     * 
-     * @return List of File.
-     */
-    public Set<String> getFiles(final String path, final String fromPath, final String toPath) {
-        Set<String> files = null;
-        try (Stream<Path> walk = Files.walk(Paths.get(path))) {
-            files = walk.filter(Files::isRegularFile).map(x -> x.toString().replace(fromPath, toPath)).collect(Collectors.toSet());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        return files;
     }
 
     /**
@@ -173,84 +152,94 @@ public class Play {
     }
 
     /**
-     * Load pre-configured Mat from a file.
+     * Load Map of buffers keyed by file name to match up to motion events event data.
      *
-     * @param mat Mat configured the same as the saved Mat. This Mat will be overwritten with the data in the file. This value is
-     * modified by JNI code.
-     *
-     * @param fileName File to read.
+     * @return Map of events by file name.
      */
-    public void loadDoubleMat(final Mat mat, final String fileName) {
-        log.info(String.format("Loading double Mat %s", fileName));
-        final var count = mat.total() * mat.channels();
-        final List<Double> list = new ArrayList<>();
-        Path path = Paths.get(fileName);
-        InputStream inStream = null;
-        // Load from file path
-        if (Files.exists(path)) {
-            try {
-                inStream = new FileInputStream(fileName);
-            } catch (FileNotFoundException e) {
-                throw new RuntimeException(e);
+    public List<List<Event>> loadSmtpMotionEvents() {
+        final var videos = findVideos();
+        final var events = findSmtpMotionEvents();
+        final var images = new ArrayList<List<Event>>();
+        var subList = new ArrayList<Event>();
+        var videosIndex = 0;
+        var eventsIndex = 0;
+        while (eventsIndex < events.size() && videosIndex < videos.size()) {
+            // Find RECORD_START
+            while (videosIndex < videos.size() && !videos.get(videosIndex).getEventType().equals("RECORD_START")) {
+                log.warn("Expected RECORD_START, but found {}", new Object[]{videos.get(videosIndex).getEventType()});
+                videosIndex++;
             }
-        } else {
-            // Load from classpath
-            inStream = Play.class.getClassLoader().getResourceAsStream(fileName);
-        }
-        try (final var dataStream = new DataInputStream(inStream)) {
-            // Read all Doubles into List
-            for (var i = 0; i < count; ++i) {
-                log.debug(String.format("%d", i));
-                list.add(dataStream.readDouble());
+            if (videosIndex < videos.size()) {
+                var start = videos.get(videosIndex);
+                // Find SMTP events before video start time
+                while (eventsIndex < events.size() && events.get(eventsIndex).getEventTime().before(start.getEventTime())) {
+                    eventsIndex++;
+                }
+                if (eventsIndex < events.size()) {
+                    // Check for RECORD_STOP
+                    videosIndex++;
+                    if (videosIndex < videos.size()) {
+                        // Found matching RECORD_STOP
+                        if (start.getEventData().equals(videos.get(videosIndex).getEventData())) {
+                            // Find SMTP events before video stop time
+                            while (eventsIndex < events.size() && events.get(eventsIndex).getEventTime().before(videos.get(
+                                    videosIndex).getEventTime())) {
+                                // MOTION_START
+                                subList.add(new Event(start.getDeviceName(), EventType.MOTION_START.name(), start.getEventData(),
+                                        Timestamp.from(events.get(eventsIndex).getEventTime().toInstant().minusSeconds(playBefore))));
+                                // HISTORY_STOP
+                                subList.add(new Event(start.getDeviceName(), EventType.HISTORY_STOP.name(), events.get(eventsIndex).
+                                        getEventData(), Timestamp.from(events.get(eventsIndex).getEventTime().toInstant().
+                                                plusSeconds(playAfter))));
+                                // MOTION_STOP
+                                subList.add(new Event(start.getDeviceName(), EventType.MOTION_STOP.name(), start.getEventData(),
+                                        Timestamp.from(events.get(eventsIndex).getEventTime().toInstant().plusSeconds(playAfter))));
+                                images.add(subList);
+                                subList = new ArrayList<>();
+                                eventsIndex++;
+                            }
+                        }
+                    } else if (videosIndex == videos.size()) {
+                        // Find SMTP events without RECORD_STOP
+                        while (eventsIndex < events.size()) {
+                            log.info("No RECORD_STOP found for {}", events.get(eventsIndex));
+                            // MOTION_START
+                            subList.add(new Event(start.getDeviceName(), EventType.MOTION_START.name(), start.getEventData(),
+                                    Timestamp.from(events.get(eventsIndex).getEventTime().toInstant().minusSeconds(playBefore))));
+                            // HISTORY_STOP
+                            subList.add(new Event(start.getDeviceName(), EventType.HISTORY_STOP.name(), events.get(eventsIndex).
+                                    getEventData(), Timestamp.from(events.get(eventsIndex).getEventTime().toInstant().
+                                            plusSeconds(playAfter))));
+                            // MOTION_STOP
+                            subList.add(new Event(start.getDeviceName(), EventType.MOTION_STOP.name(), start.getEventData(),
+                                    Timestamp.from(events.get(eventsIndex).getEventTime().toInstant().plusSeconds(playAfter))));
+                            images.add(subList);
+                            subList = new ArrayList<>();
+                            eventsIndex++;
+                        }
+                    }
+                }
             }
-        } catch (IOException e) {
-            if (e.getMessage() == null) {
-                log.info(String.format("EOF reached for %s", fileName));
-            } else {
-                log.error(String.format("Exception %s", e.getMessage()));
-            }
+            videosIndex++;
         }
-        // Set byte array to size of List
-        final var buff = new double[list.size()];
-        // Convert to primitive array
-        for (var i = 0; i < buff.length; i++) {
-            buff[i] = list.get(i);
-        }
-        mat.put(0, 0, buff);
+        return images;
     }
 
     /**
-     * Load calibration Mats.
+     * Get videos with start/stop time.
      *
-     * @param camMtxFileName
-     * Camera matrix file name.
-     * @param distCoFileName
-     * Distortion coefficients file name.
-     * @return Mat array consisting of cameraMatrix and distCoeffs.
+     * @return List of Events.
      */
-    public Mat[] loadCalibrate(final String camMtxFileName, final String distCoFileName) {
-        final var cameraMatrix = Mat.eye(3, 3, CvType.CV_64F);
-        loadDoubleMat(cameraMatrix, camMtxFileName);
-        final var distCoeffs = Mat.zeros(5, 1, CvType.CV_64F);
-        loadDoubleMat(distCoeffs, distCoFileName);
-        return new Mat[]{cameraMatrix, distCoeffs};
+    public List<Event> findVideos() {
+        return eventService.findVideos(deviceName);
     }
-    
+
     /**
-     * Undistort image.
+     * Get SMTP motion events for start/stop and composite image.
      *
-     * @param image
-     * Distorted image.
-     * @param cameraMatrix
-     * Camera matrix.
-     * @param distCoeffs
-     * Input vector of distortion coefficients.
-     * @return Undistorted image.
+     * @return List of Events.
      */
-    public Mat undistort(final Mat image, final Mat cameraMatrix, final Mat distCoeffs) {
-        final var newCameraMtx = Calib3d.getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, image.size(), 0);
-        final var mat = new Mat();
-        Calib3d.undistort(image, mat, cameraMatrix, distCoeffs, newCameraMtx);
-        return mat;
-    }    
+    public List<Event> findSmtpMotionEvents() {
+        return eventService.findSmtpMotionEvents(deviceName);
+    }
 }

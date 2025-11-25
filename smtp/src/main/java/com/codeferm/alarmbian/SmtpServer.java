@@ -94,7 +94,7 @@ public class SmtpServer {
     /**
      * Log pattern.
      */
-    @Value("${log.pattern}")    
+    @Value("${log.pattern}")
     private String logPattern;
     /**
      * File output path.
@@ -106,6 +106,7 @@ public class SmtpServer {
      */
     @Value("${device.regex}")
     private String[] deviceRegex;
+    
     /**
      * Directory name formatter.
      */
@@ -165,7 +166,7 @@ public class SmtpServer {
         try {
             greenMail.getManagers().getUserManager().createUser(email, user, password);
         } catch (UserException e) {
-           throw new RuntimeException(e);
+            throw new RuntimeException(e);
         }
         greenMail.getManagers().getUserManager().setAuthRequired(true);
         greenMail.start();
@@ -338,7 +339,7 @@ public class SmtpServer {
             }
             // Use Instant.ofEpochMilli(message.getReceivedDate().getTime()) or similar if Timestamp conversion is required
             var eventTimestamp = Timestamp.from(instant);
-            eventService.create(new Event(deviceName, EventType.SMTP_MOTION.name(), fileName, eventTimestamp));
+            eventService.create(new Event(deviceName, EventType.SMTP_MOTION.name(), filePath.toString(), eventTimestamp));
             log.info("Saved attachment: {} ({})", filePath.toAbsolutePath(), part.getContentType());
         } catch (MessagingException | IOException e) {
             throw new RuntimeException("Error saving attachment for device: " + deviceName, e);

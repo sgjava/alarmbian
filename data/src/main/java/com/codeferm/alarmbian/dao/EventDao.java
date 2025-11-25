@@ -41,6 +41,16 @@ public interface EventDao extends ListCrudRepository<Event, Long> {
     @Query(value
             = "select ID, DEVICE_NAME, EVENT_TYPE, EVENT_DATA, EVENT_TIME from EVENT where DEVICE_NAME = :deviceName and EVENT_TYPE = 'RECORD_START' order by ID")
     List<Event> findBuffers(final String deviceName);
+    
+    /**
+     * Get all entities by device name and event type in ('RECORD_START', 'RECORD_STOP').
+     *
+     * @param deviceName Device name.
+     * @return List of Event entities.
+     */
+    @Query(value
+            = "select ID, DEVICE_NAME, EVENT_TYPE, EVENT_DATA, EVENT_TIME from EVENT where DEVICE_NAME = :deviceName and EVENT_TYPE in ('RECORD_START', 'RECORD_STOP') order by ID")
+    List<Event> findVideos(final String deviceName);    
 
     /**
      * Get all entities by device name and event type in ('MOTION_START', 'MOTION_STOP', 'HISTORY_STOP').
@@ -51,7 +61,7 @@ public interface EventDao extends ListCrudRepository<Event, Long> {
     @Query(value
             = "select ID, DEVICE_NAME, EVENT_TYPE, EVENT_DATA, EVENT_TIME from EVENT where DEVICE_NAME = :deviceName and EVENT_TYPE in ('MOTION_START', 'MOTION_STOP', 'HISTORY_STOP') order by ID")
     List<Event> findMotionEvents(final String deviceName);
-
+    
     /**
      * Get all entities by device name and event type in ('MOTION_START', 'MOTION_STOP', 'MOTION_RESET', 'HISTORY_STOP').
      *
@@ -62,6 +72,16 @@ public interface EventDao extends ListCrudRepository<Event, Long> {
             = "select ID, DEVICE_NAME, EVENT_TYPE, EVENT_DATA, EVENT_TIME from EVENT where DEVICE_NAME = :deviceName and EVENT_TYPE in ('MOTION_START', 'MOTION_STOP', 'MOTION_RESET', 'HISTORY_STOP') order by ID")
     List<Event> findMotionFiles(final String deviceName);
 
+    /**
+     * Get all entities by device name and event type = 'SMTP_MOTION'.
+     *
+     * @param deviceName Device name.
+     * @return List of Event entities.
+     */
+    @Query(value
+            = "select ID, DEVICE_NAME, EVENT_TYPE, EVENT_DATA, EVENT_TIME from EVENT where DEVICE_NAME = :deviceName and EVENT_TYPE = 'SMTP_MOTION' order by ID")
+    List<Event> findSmtpMotionEvents(final String deviceName);
+        
     /**
      * Delete all records by name and timestamp except 'START_UP' and 'SHUT_DOWN'.
      *

@@ -11,12 +11,10 @@ import de.milchreis.uibooster.model.Form;
 import de.milchreis.uibooster.model.FormElement;
 import de.milchreis.uibooster.model.FormElementChangeListener;
 import de.milchreis.uibooster.model.UiBoosterOptions;
-import de.milchreis.uibooster.model.formelements.CheckboxFormElement;
 import de.milchreis.uibooster.model.formelements.TextFormElement;
 import java.awt.Font;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.time.Duration;
@@ -25,20 +23,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import javax.imageio.ImageIO;
 import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.UIManager;
 import javax.swing.plaf.FontUIResource;
 import lombok.extern.slf4j.Slf4j;
 import org.opencv.core.Mat;
+import org.opencv.core.Size;
 import org.opencv.imgcodecs.Imgcodecs;
+import org.opencv.imgproc.Imgproc;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
 
 /**
  * Alarmbian player UI based on UI Booster.
@@ -51,16 +49,6 @@ import picocli.CommandLine.Option;
 @Slf4j
 @Command(name = "playUI")
 public class PlayUI implements Callable<Integer>, FormElementChangeListener {
-    /**
-     * Camera matrix.
-     */
-    @Option(names = {"-m", "--matrix"}, description = "Camera matrix")
-    private String matrix = "camera-matrix.bin";
-    /**
-     * Distortion coefficients.
-     */
-    @Option(names = {"-c", "--coefs"}, description = "Distortion coefficients")
-    private String coefs = "dist-coefs.bin";
 
     @Autowired
     private ApplicationContext context;
@@ -72,7 +60,7 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     /**
      * UI Booster.
      */
-    private UiBooster booster;
+    private final UiBooster booster;
     /**
      * Image index.
      */
@@ -107,21 +95,38 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
      * Play before event in seconds.
      */
     @Value("${playBefore}")
-    private Integer playBefore;    
+    private Integer playBefore;
     /**
      * Play after event in seconds.
      */
     @Value("${playAfter}")
-    private Integer playAfter;    
-    
+    private Integer playAfter;
     /**
-     * Calibration array.
+     * Preview X maximum.
      */
-    private Mat[] calibrateArr;
+    @Value("${xMax}")
+    private Integer xMax;
+    /**
+     * Preview Y maximum.
+     */
+    @Value("${yMax}")
+    private Integer yMax;
     /**
      * Convert Mat to BufferedImage.
      */
-    private MatToBufImg matToBufImg;
+    private final MatToBufImg matToBufImg;
+    /**
+     * Source Mat.
+     */
+    private Mat source;
+    /**
+     * Destination Mat.
+     */
+    private Mat dest;
+    /**
+     * SMTP images?
+     */
+    private boolean smtpImages = false;
 
     /**
      * Set font globally.
@@ -139,14 +144,20 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         booster = new UiBooster(UiBoosterOptions.Theme.SWING);
         matToBufImg = new MatToBufImg();
         matToBufImg.init();
+        source = null;
+        dest = new Mat();
     }
-    
+
     /**
      * Refresh from database.
      */
     public void refresh() {
-        buffers = play.loadBuffers();
-        images = play.loadEvents();
+        buffers = play.loadMotionBuffers();
+        if (smtpImages) {
+            images = play.loadSmtpMotionEvents();
+        } else {
+            images = play.loadMotionEvents();
+        }
         elements = new ArrayList<>();
         timestamps = new HashMap<>();
         var i = 0;
@@ -159,29 +170,23 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
             elements.add(play.formatTimestamp(images.get(i).get(0).getEventTime()));
         }
         index = images.size() - 1;
-    }    
+    }
 
     public Integer call() throws Exception {
-        calibrateArr = play.loadCalibrate(matrix, coefs);
         final var dialog = booster.showWaitingDialog("Operation", play.getDeviceName());
         dialog.addToLargeMessage("Refresh data");
         refresh();
         index = images.size() - 1;
-        BufferedImage image;
-        try {
-            image = ImageIO.read(new File(images.get(index).get(1).getEventData().replace(remoteFromPath, remoteToPath)));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
         dialog.close();
         var form = booster.createForm(play.getDeviceName()).
-                addCustomElement(new IconFormElement(images.get(index).get(1).getEventData().replace(remoteFromPath, remoteToPath))).
+                addCustomElement(new IconFormElement(getImageIcon(null, images.get(index).get(1).getEventData().replace(
+                        remoteFromPath, remoteToPath)))).
                 setID("image").
                 startRow().
                 addSelection("Events", elements).setID("events").
                 addText("Duration", play.formatDuration(images.get(index).get(0).getEventTime(), images.get(index).get(2).
                         getEventTime())).setID("duration").setDisabled().
-                addCheckbox(null).setID("undistort").
+                addSelection("Event Type", "Motion", "SMTP").setID("eventType").
                 endRow().
                 startRow().
                 addButton("Play", () -> {
@@ -189,35 +194,38 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 addButton("Refresh", () -> {
                 }).setID("refresh").
                 endRow().
-                andWindow().setSize(image.getWidth() + 40, image.getHeight() + 310).save().
+                andWindow().setSize(xMax + 40, yMax + 310).save().
                 setChangeListener(this).show();
         // Clean up
         matToBufImg.done();
-        if (calibrateArr != null) {
-            calibrateArr[0].release();
-            calibrateArr[1].release();
-        }
         return 0;
     }
 
     /**
-     * Update form elements.
+     * Return image icon from image file.
      *
      * @param form Form to update.
      * @param fileName Image file name.
      * @return Image icon.
      */
     public ImageIcon getImageIcon(final Form form, final String fileName) {
-        final boolean checked = ((CheckboxFormElement) form.getById("undistort")).getValue();
-        ImageIcon imageIcon;
-        if (checked) {
-            final var mat = Imgcodecs.imread(fileName, Imgcodecs.IMREAD_UNCHANGED);
-            final var undistort = play.undistort(mat, calibrateArr[0], calibrateArr[1]);
-            mat.release();
-            imageIcon = new ImageIcon(matToBufImg.execute(undistort));
-            undistort.release();
+        ImageIcon imageIcon = null;
+        // Get preview image
+        source = Imgcodecs.imread(fileName);
+        var type = BufferedImage.TYPE_BYTE_GRAY;
+        if (source.channels() > 1) {
+            // If it's a color image (3 channels), assume BGR and use TYPE_3BYTE_BGR
+            type = BufferedImage.TYPE_3BYTE_BGR;
+        }
+        // Resize if needed
+        if (source.cols() > xMax) {
+            Imgproc.resize(source, dest, new Size(xMax, yMax), 0, 0, Imgproc.INTER_LINEAR);
+            source.release();
+            imageIcon = new ImageIcon(matToBufImg.execute(dest));
+            dest.release();
         } else {
-            imageIcon = new ImageIcon(fileName);
+            imageIcon = new ImageIcon(matToBufImg.execute(source));
+            source.release();
         }
         return imageIcon;
     }
@@ -239,9 +247,10 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
      * @param start Start offset.
      * @param duration Duration in seconds.
      */
-    public void play(final String fileName, final long start, final long duration) {
+    public void playFile(final String fileName, final long start, final long duration) {
         final var command = new ArrayList<String>();
         command.add("ffplay");
+        command.add("-autoexit");
         command.add(fileName);
         command.add("-ss");
         command.add(String.valueOf(start));
@@ -284,10 +293,9 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
                 final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
                 final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
-                play(fileName, start.getSeconds(), duration.getSeconds());
+                playFile(fileName, start.getSeconds(), duration.getSeconds());
                 break;
             case "events":
-            case "undistort":
                 var value = (String) form.getById("events").getValue();
                 // This will happen when Refresh pressed bacause selection list is updated
                 if (!StringUtils.isEmpty(value)) {
@@ -295,9 +303,20 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                     label.setIcon(getImageIcon(form, images.get(index).get(1).getEventData().replace(remoteFromPath, remoteToPath)));
                 }
                 break;
+            case "eventType":
+                var selectedType = (String) o;
+                if ("SMTP".equals(selectedType)) {
+                    smtpImages = true;
+                } else {
+                    smtpImages = false;
+                }
+                refresh();
+                var selection = form.getById("events").toSelection();
+                selection.setPossibilities(elements);
+                break;
             case "refresh":
                 refresh();
-                final var selection = form.getById("events").toSelection();
+                selection = form.getById("events").toSelection();
                 selection.setPossibilities(elements);
                 break;
             default:

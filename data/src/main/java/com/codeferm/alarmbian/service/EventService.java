@@ -133,6 +133,16 @@ public class EventService {
     }
     
     /**
+     * Get all entities by device name and event type in ('RECORD_START', 'RECORD_STOP').
+     *
+     * @param deviceName Device name.
+     * @return List of Event entities.
+     */
+    public List<Event> findVideos(final String deviceName) {
+        return eventDao.findVideos(deviceName);
+    }    
+    
+    /**
      * Get all entities by device name and event type in ('MOTION_START', 'MOTION_STOP', 'HISTORY_STOP').
      *
      * @param deviceName Device name.
@@ -141,7 +151,7 @@ public class EventService {
     public List<Event> findMotionEvents(final String deviceName) {
         return eventDao.findMotionEvents(deviceName);
     }
-
+        
     /**
      * Get all entities by device name and event type in ('MOTION_START', 'MOTION_STOP', 'MOTION_RESET', 'HISTORY_STOP').
      *
@@ -150,7 +160,17 @@ public class EventService {
      */
     public List<Event> findMotionFiles(final String deviceName) {
         return eventDao.findMotionFiles(deviceName);
-    }         
+    }
+    
+    /**
+     * Get all entities by device name and event type = 'SMTP_MOTION'.
+     *
+     * @param deviceName Device name.
+     * @return List of Event entities.
+     */
+    public List<Event> findSmtpMotionEvents(final String deviceName) {
+        return eventDao.findSmtpMotionEvents(deviceName);
+    }    
 
     /**
      * Delete events by device name and timestamp.
