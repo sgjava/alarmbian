@@ -152,6 +152,27 @@ public class Play {
     }
 
     /**
+     * Create event list like built in motion detection for SMTP events.
+     * 
+     * @param images List of lists.
+     * @param start Video event.
+     * @param smtpEvent SMTP event.
+     */
+    public void createAndAddEvents(List<List<Event>> images, Event start, Event smtpEvent) {
+        var subList = new ArrayList<Event>();
+        // MOTION_START
+        subList.add(new Event(start.getDeviceName(), EventType.MOTION_START.name(), start.getEventData(),
+                Timestamp.from(smtpEvent.getEventTime().toInstant().minusSeconds(playBefore))));
+        // HISTORY_STOP
+        subList.add(new Event(start.getDeviceName(), EventType.HISTORY_STOP.name(), smtpEvent.getEventData(),
+                Timestamp.from(smtpEvent.getEventTime().toInstant().plusSeconds(playAfter))));
+        // MOTION_STOP
+        subList.add(new Event(start.getDeviceName(), EventType.MOTION_STOP.name(), start.getEventData(),
+                Timestamp.from(smtpEvent.getEventTime().toInstant().plusSeconds(playAfter))));
+        images.add(subList);
+    }
+
+    /**
      * Load Map of buffers keyed by file name to match up to motion events event data.
      *
      * @return Map of events by file name.
@@ -160,67 +181,53 @@ public class Play {
         final var videos = findVideos();
         final var events = findSmtpMotionEvents();
         final var images = new ArrayList<List<Event>>();
-        var subList = new ArrayList<Event>();
         var videosIndex = 0;
         var eventsIndex = 0;
         while (eventsIndex < events.size() && videosIndex < videos.size()) {
-            // Find RECORD_START
+            // Find the next RECORD_START video event
             while (videosIndex < videos.size() && !videos.get(videosIndex).getEventType().equals("RECORD_START")) {
-                log.warn("Expected RECORD_START, but found {}", new Object[]{videos.get(videosIndex).getEventType()});
+                log.warn("Expected RECORD_START, but found {}", videos.get(videosIndex).getEventType());
                 videosIndex++;
             }
-            if (videosIndex < videos.size()) {
-                var start = videos.get(videosIndex);
-                // Find SMTP events before video start time
-                while (eventsIndex < events.size() && events.get(eventsIndex).getEventTime().before(start.getEventTime())) {
+            if (videosIndex >= videos.size()) {
+                // No more RECORD_START events to process
+                break;
+            }
+            var startVideo = videos.get(videosIndex);
+            // Advance SMTP events past video start time
+            while (eventsIndex < events.size() && events.get(eventsIndex).getEventTime().before(startVideo.getEventTime())) {
+                eventsIndex++;
+            }
+            if (eventsIndex >= events.size()) {
+                // No more SMTP events to process
+                break;
+            }
+            // Find corresponding RECORD_STOP and process associated SMTP events
+            videosIndex++; // Check the event immediately following the RECORD_START
+
+            if (videosIndex < videos.size() && startVideo.getEventData().equals(videos.get(videosIndex).getEventData())) {
+                // CFound matching RECORD_STOP
+                var stopVideo = videos.get(videosIndex);
+                // Process all SMTP events before the video stop time
+                while (eventsIndex < events.size() && events.get(eventsIndex).getEventTime().before(stopVideo.getEventTime())) {
+                    createAndAddEvents(images, startVideo, events.get(eventsIndex));
                     eventsIndex++;
                 }
-                if (eventsIndex < events.size()) {
-                    // Check for RECORD_STOP
-                    videosIndex++;
-                    if (videosIndex < videos.size()) {
-                        // Found matching RECORD_STOP
-                        if (start.getEventData().equals(videos.get(videosIndex).getEventData())) {
-                            // Find SMTP events before video stop time
-                            while (eventsIndex < events.size() && events.get(eventsIndex).getEventTime().before(videos.get(
-                                    videosIndex).getEventTime())) {
-                                // MOTION_START
-                                subList.add(new Event(start.getDeviceName(), EventType.MOTION_START.name(), start.getEventData(),
-                                        Timestamp.from(events.get(eventsIndex).getEventTime().toInstant().minusSeconds(playBefore))));
-                                // HISTORY_STOP
-                                subList.add(new Event(start.getDeviceName(), EventType.HISTORY_STOP.name(), events.get(eventsIndex).
-                                        getEventData(), Timestamp.from(events.get(eventsIndex).getEventTime().toInstant().
-                                                plusSeconds(playAfter))));
-                                // MOTION_STOP
-                                subList.add(new Event(start.getDeviceName(), EventType.MOTION_STOP.name(), start.getEventData(),
-                                        Timestamp.from(events.get(eventsIndex).getEventTime().toInstant().plusSeconds(playAfter))));
-                                images.add(subList);
-                                subList = new ArrayList<>();
-                                eventsIndex++;
-                            }
-                        }
-                    } else if (videosIndex == videos.size()) {
-                        // Find SMTP events without RECORD_STOP
-                        while (eventsIndex < events.size()) {
-                            log.info("No RECORD_STOP found for {}", events.get(eventsIndex));
-                            // MOTION_START
-                            subList.add(new Event(start.getDeviceName(), EventType.MOTION_START.name(), start.getEventData(),
-                                    Timestamp.from(events.get(eventsIndex).getEventTime().toInstant().minusSeconds(playBefore))));
-                            // HISTORY_STOP
-                            subList.add(new Event(start.getDeviceName(), EventType.HISTORY_STOP.name(), events.get(eventsIndex).
-                                    getEventData(), Timestamp.from(events.get(eventsIndex).getEventTime().toInstant().
-                                            plusSeconds(playAfter))));
-                            // MOTION_STOP
-                            subList.add(new Event(start.getDeviceName(), EventType.MOTION_STOP.name(), start.getEventData(),
-                                    Timestamp.from(events.get(eventsIndex).getEventTime().toInstant().plusSeconds(playAfter))));
-                            images.add(subList);
-                            subList = new ArrayList<>();
-                            eventsIndex++;
-                        }
+                // videosIndex will be incremented at the end of the loop
+            } else {
+                // No matching RECORD_STOP found (or videosIndex is out of bounds/mismatch)
+                if (videosIndex == videos.size()) {
+                    // EOF reached, process remaining SMTP events
+                    while (eventsIndex < events.size()) {
+                        log.info("No RECORD_STOP found for {}", events.get(eventsIndex));
+                        createAndAddEvents(images, startVideo, events.get(eventsIndex));
+                        eventsIndex++;
                     }
                 }
+                // If videosIndex is valid but the events don't match, we fall through and increment videosIndex at the loop end,
+                // effectively skipping the current `startVideo` and the non-matching event at `videosIndex`.
             }
-            videosIndex++;
+            videosIndex++; // Move to the next event in the videos list.
         }
         return images;
     }
