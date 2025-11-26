@@ -3,17 +3,18 @@
 Alarmbian is a cross platform DIY NVR at its core, but it can also be used to
 build your own smart cameras. The cool thing is you can use almost any board
 Armbian supports, an x86 mini PC, an old x86 based PC and probably Windows
-since the code is based on Java, FFMPEG, OpenCV and Deepstack. All testing is
-on Ubuntu 24.04 at this point.
+since the code is based on Java, MediaMTX, FFMPEG, OpenCV and Deepstack.
+All testing is on Ubuntu 24.04 at this point.
 
 Unlike other NVR software, Alarmbian can handle h265+ or any stream FFMPEG can handle.
-It's event driven and built for modern or old cameras. I've added a SMTP server that
+It's event driven and built for modern or old cameras. I've added an SMTP server that
 cameras can send images. This is handy with the camera's built-in AI detection.
 * Low power and small footprint ODROID-XU4 handles six 4K/15 FPS H265+ streams.
 * Motion detection built in with the ability to add other types of realtime detection.
 * History image shows entire motion event in a single image.
 * Images sent via AI detection handled.
 * Use Deepstack or SenseAI.
+* Java based UI to view events and play video.
 
 I'm leaving optimized install up to the user since there are so many ways to optimize FFMPEG, OpenCV, Deepstack, etc. This is truly
 a DIY system. I'll point you in the right direction hopefully.
@@ -74,7 +75,8 @@ prototyping. If you do run my install you only need to do the following because 
 
 ## Install Supervisor
 Supervisor will be used to start all the jobs up required for Alarmbian. We
-will place all logs in ~/logs.
+will place all logs in ~/logs. Make sure you edit individual conf files and change
+`username` to your actual username.
 * `cd`
 * `mkdir logs`
 * `sudo apt install supervisor`
