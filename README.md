@@ -119,7 +119,7 @@ be used as well with configuration and schema.sql changes,
 * `rm test.mv.db`
 
 Add Supervisor job
-* Reference [configuration](server/scripts/supervisor/h2.conf)
+* Reference [configuration](scripts/supervisor/h2.conf)
 * `sudo nano /etc/supervisor/conf.d/h2.conf`
 * `sudo supervisorctl update`
 * Test H2 client
@@ -159,7 +159,7 @@ to make your cam1.properties configuration
 * ^C to exit app
 * If you see a SIGSEGV don't worry because ^C will not be used for shutdown.
 Add Supervisor job
-* Reference [configuration](server/scripts/supervisor/cam1.conf)
+* Reference [configuration](scripts/supervisor/cam1.conf)
 * `sudo nano /etc/supervisor/conf.d/cam1.conf`
 * `sudo supervisorctl update`
 * Check logs dir for issues
