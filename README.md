@@ -83,7 +83,7 @@ will place all logs in ~/logs. Make sure you edit individual conf files and chan
 
 ## Install MediaMTX
 It makes sense to centralize camera streams and minimize traffic from the cameras.
-mediamtx makes this happen. Cameras like the Annke C800 only allow one
+MediaMTX makes this happen. Cameras like the Annke C800 only allow one
 connection to the substream, so a proxy is required. Substreams are used for
 analysis and live viewing, so more than one stream at a time is required.
 * `cd`
@@ -143,24 +143,26 @@ Add Supervisor job
 * `cd`
 * `git clone --depth 1 https://github.com/sgjava/alarmbian.git`
 * `cd alarmbian`
-* Edit [POM](https://github.com/sgjava/alarmbian/blob/72e7bf59daf5b959c3bb6e710d9660549715e765/server/pom.xml#L21)
-and change `opencv` as needed
-* Edit [POM](https://github.com/sgjava/alarmbian/blob/72e7bf59daf5b959c3bb6e710d9660549715e765/server/pom.xml#L23)
-and change `opencv.lib` as needed
 * `mvn initialize -Pinstall-opencv`
 * `mvn clean install`
 * `cp server/target/server-1.0.0-SNAPSHOT.jar ~/.`
+* `cp server/target/smtp-1.0.0-SNAPSHOT.jar ~/.`
 * `cd`
 * `sudo supervisorctl start h2`
 * `sudo supervisorctl start mediamtx`
-* Use [application.properties](https://raw.githubusercontent.com/sgjava/alarmbian/main/src/main/resources/application.properties)
-to make your cam1.properties configuration
+* Use [application.properties](https://raw.githubusercontent.com/sgjava/alarmbian/refs/heads/main/server/src/main/resources/application.properties)
+to make your cam1.properties configuration (repeat for each camera using unique file name)
 * `java -Djava.library.path=/home/username/opencv/build/lib -jar server-1.0.0-SNAPSHOT.jar --spring.config.location=cam1.properties`
 * ^C to exit app
 * If you see a SIGSEGV don't worry because ^C will not be used for shutdown.
-Add Supervisor job
+Add Supervisor job (repeat for each camera using unique file name)
 * Reference [configuration](scripts/supervisor/cam1.conf)
 * `sudo nano /etc/supervisor/conf.d/cam1.conf`
+* `sudo supervisorctl update`
+* Check logs dir for issues
+Add Supervisor job
+* Reference [configuration](scripts/supervisor/smtp.conf)
+* `sudo nano /etc/supervisor/conf.d/smtp.conf`
 * `sudo supervisorctl update`
 * Check logs dir for issues
 
@@ -176,7 +178,7 @@ Add Supervisor job
 
 ## Deepstack
 This is for optional Deepstack 2.0 support. This can be run from a different system
-if needed.There is no longer support for ARM32, but all the rest of the stack
+if needed. There is no longer support for ARM32, but all the rest of the stack
 supports ARM32.Use ARM64 or x86_64 to run Deepstack. Make sure you use the correct
  version of `docker run` if you want hardware acceleration, etc. Below is the CPU
 based version.
@@ -193,3 +195,13 @@ To stop
 * `docker stop deepstack`
 To remove volume
 * `docker volume rm localstorage`
+
+## Play UI
+Play UI is a [UiBooster](https://github.com/Milchreis/UiBooster) based UI that uses OpenCV and ffplay to view events and play videos.
+![Client](images/client.png)
+* `sudo apt install sshfs`
+* `sudo mkdir /mnt/data` or whatever local dir you want to use
+* `sshfs servadmin@192.168.1.99:/data/ /mnt/data1` change ip, remote and local dirs as needed
+* `cd alarmbian` this assumes you compiled project on the UI machine
+* Use [application.properties](https://raw.githubusercontent.com/sgjava/alarmbian/refs/heads/main/client/src/main/resources/application.properties) to make your own client.properties
+* `java -Djava.library.path=/home/username/opencv/build/lib -jar client/target/client-1.0.0-SNAPSHOT.jar --spring.config.location=client.properties`
