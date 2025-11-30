@@ -185,7 +185,7 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 startRow().
                 addSelection("Events", elements).setID("events").
                 addText("Duration", play.formatDuration(images.get(index).get(0).getEventTime(), images.get(index).get(2).
-                        getEventTime())).setID("duration").setDisabled().
+                        getEventTime()),true).setID("duration").
                 addSelection("Event Type", "Motion", "SMTP").setID("eventType").
                 endRow().
                 startRow().
@@ -319,6 +319,8 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 selection = form.getById("events").toSelection();
                 selection.setPossibilities(elements);
                 break;
+            case "duration":
+                break;                
             default:
                 booster.showErrorDialog(String.format("%s onChange not handled", fe.getId()), "Error");
         }
