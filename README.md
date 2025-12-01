@@ -35,15 +35,17 @@ warning: this will build static libs
 
 ## Install Java
 * `cd`
-* [Download](https://www.azul.com/downloads/?package=jdk#download-openjdk) Zulu JDK 21 for your platform using the .tar.gz
+* [Download](https://www.azul.com/downloads/?package=jdk#download-openjdk) Zulu JDK 25 for your platform using the .tar.gz
 * `tar -xf zulu*`
 * `rm *.tar.gz`
 * `sudo mkdir -p /usr/lib/jvm`
-* `sudo mv zulu* /usr/lib/jvm/jdk21`
+* `sudo mv zulu* /usr/lib/jvm/jdk25`
 * `sudo nano /etc/environment`
-* Modify PATH and append `:/usr/lib/jvm/jdk21/bin` to the end
-* Add `JAVA_HOME="/usr/lib/jvm/jdk21"` on new line
+* Modify PATH and append `:/usr/lib/jvm/jdk25/bin` to the end
+* Add `JAVA_HOME="/usr/lib/jvm/jdk25"` on new line
 * Save file
+* `sudo update-alternatives --install /usr/bin/java java /usr/lib/jvm/jdk25/bin/java 2`
+* `sudo update-alternatives --install /usr/bin/javac javac /usr/lib/jvm/jdk25/bin/javac 2`
 * Close shell and open a new one
 * `java -version`
 

@@ -5,7 +5,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.6</version> 
+        <version>3.5.8</version> 
         <relativePath/> 
     </parent>
 
@@ -26,13 +26,13 @@
     </modules>
     
     <properties>
-        <java.version>21</java.version>
+        <java.version>25</java.version>
         <maven.compiler.release>${java.version}</maven.compiler.release>
-        <lombok.version>1.18.38</lombok.version>        
+        <lombok.version>1.18.42</lombok.version>        
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
         <site.installationModule>${project.artifactId}</site.installationModule>
         <spring-cloud.version>2025.0.0</spring-cloud.version>
         <opencv>${user.home}/opencv/build/bin/opencv-4130.jar</opencv>
@@ -52,7 +52,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-install-plugin</artifactId>
-                        <version>3.1.2</version>
+                        <version>3.1.4</version>
                         <executions>
                             <execution>
                                 <id>install-opencv</id>

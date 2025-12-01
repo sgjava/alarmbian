@@ -35,7 +35,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.14.0</version> 
+                <version>3.14.1</version> 
                 <configuration>
                     <release>${java.version}</release>
                     <compilerArgs>
@@ -56,7 +56,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.5.3</version>
+                <version>3.5.4</version>
                 <configuration>
                     <trimStackTrace>false</trimStackTrace>
                     <argLine>-Djava.library.path=${opencv.lib}</argLine>
