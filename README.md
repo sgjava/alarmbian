@@ -200,6 +200,7 @@ To remove volume
 
 ## Play UI
 Play UI is a [UiBooster](https://github.com/Milchreis/UiBooster) based UI that uses OpenCV and ffplay to view events and play videos.
+You can set before and after seconds to see what was before and after event. You can also save event as video.
 ![Client](images/client.png)
 * `sudo apt install sshfs`
 * `sudo mkdir /mnt/data` or whatever local dir you want to use

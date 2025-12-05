@@ -16,6 +16,7 @@ import de.milchreis.uibooster.model.formelements.TextFormElement;
 import java.awt.Font;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.time.Duration;
@@ -35,7 +36,6 @@ import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 import picocli.CommandLine.Command;
 
@@ -51,8 +51,6 @@ import picocli.CommandLine.Command;
 @Command(name = "playUI")
 public class PlayUI implements Callable<Integer>, FormElementChangeListener {
 
-    @Autowired
-    private ApplicationContext context;
     /**
      * Play logic.
      */
@@ -88,10 +86,15 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     @Value("${remoteFromPath}")
     private String remoteFromPath;
     /**
-     * Remote from path.
+     * Remote to path.
      */
     @Value("${remoteToPath}")
     private String remoteToPath;
+    /**
+     * Local path.
+     */
+    @Value("${localPath}")
+    private String localPath;
     /**
      * Play before event in seconds.
      */
@@ -123,7 +126,7 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     /**
      * Destination Mat.
      */
-    private Mat dest;
+    private final Mat dest;
     /**
      * SMTP images?
      */
@@ -173,6 +176,11 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         index = images.size() - 1;
     }
 
+    /**
+     * Blocking call until OK button pressed.
+     *
+     * @return @throws Exception Possible exception.
+     */
     public Integer call() throws Exception {
         final var dialog = booster.showWaitingDialog("Operation", play.getDeviceName());
         dialog.addToLargeMessage("Refresh data");
@@ -194,6 +202,8 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 startRow().
                 addButton("Play", () -> {
                 }).setID("play").
+                addButton("Save", () -> {
+                }).setID("save").
                 addButton("Refresh", () -> {
                 }).setID("refresh").
                 endRow().
@@ -241,6 +251,48 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     public void update(final Form form) {
         var duration = (TextFormElement) form.getById("duration");
         duration.setValue(play.formatDuration(images.get(index).get(0).getEventTime(), images.get(index).get(2).getEventTime()));
+    }
+
+    /**
+     * Use ffmpeg to save file clip.
+     * 
+     * @param fileName Video buffer file.
+     * @param start Start offset.
+     * @param duration Duration in seconds.
+     * @param outputFileName Output file name.
+     */
+    public void saveFile(final String fileName, final long start, final long duration, final String outputFileName) {
+        final var command = new ArrayList<String>();
+        command.add("ffmpeg");
+        command.add("-ss");
+        command.add(String.valueOf(start));
+        command.add("-i");
+        command.add(fileName);
+        command.add("-t");
+        command.add(String.valueOf(duration));
+        command.add("-c");
+        command.add("copy");
+        command.add(outputFileName);
+        final var pb = new ProcessBuilder(command);
+        pb.redirectErrorStream(true);
+        try {
+            final var pc = pb.start();
+            try (final var inputStatus = pc.getInputStream(); final var readStatus = new BufferedReader(new InputStreamReader(inputStatus))) {
+                while (readStatus.readLine() != null) {
+                    // Consume FFmpeg output/status (optional)
+                }
+            }
+            try {
+                pc.waitFor();
+                pc.destroy();
+                log.debug("File saved successfully to {}", outputFileName);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // Best practice for interrupted exception
+                throw new RuntimeException("Process interrupted", e);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to execute FFmpeg command", e);
+        }
     }
 
     /**
@@ -321,6 +373,18 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
                 playFile(fileName, start.getSeconds(), duration.getSeconds());
             }
+            case "save" -> {
+                final var bufferStart = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
+                final var motionStart = images.get(index).get(0).getEventTime().toInstant();
+                final var motionStop = images.get(index).get(2).getEventTime().toInstant();
+                final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
+                final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
+                final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
+                var file = new File(images.get(index).get(1).getEventData().replace("jpg", "mkv"));
+                var saveFileName = file.getName();
+                saveFile(fileName, start.getSeconds(), duration.getSeconds(), String.format("%s%s%s", localPath,
+                        File.separator, saveFileName));
+            }
             case "events" -> {
                 var value = (String) form.getById("events").getValue();
                 // This will happen when Refresh pressed bacause selection list is updated
@@ -367,7 +431,8 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                     }
                 }
             }
-            default -> booster.showErrorDialog(String.format("%s onChange not handled", fe.getId()), "Error");
+            default ->
+                booster.showErrorDialog(String.format("%s onChange not handled", fe.getId()), "Error");
         }
         update(form);
     }
