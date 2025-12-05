@@ -15,14 +15,7 @@
     
     <name>Client</name>
     <url>https://github.com/sgjava/alarmbian/client</url>    
-        
-    <repositories>
-        <repository>
-            <id>jitpack.io</id>
-            <url>https://jitpack.io</url>
-        </repository>    
-    </repositories>    
-              
+          
     <build>
         <plugins>
             <plugin>
@@ -92,9 +85,9 @@
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
-            <groupId>com.github.Milchreis</groupId>
-            <artifactId>UiBooster</artifactId>
-            <version>1.21.1</version>
+            <groupId>com.suckatcoding</groupId>
+            <artifactId>uibooster</artifactId>
+            <version>1.22.0</version>
         </dependency>
         <!-- Provided -->
         <dependency>

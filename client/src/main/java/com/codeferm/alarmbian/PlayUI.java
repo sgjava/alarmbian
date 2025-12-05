@@ -11,6 +11,7 @@ import de.milchreis.uibooster.model.Form;
 import de.milchreis.uibooster.model.FormElement;
 import de.milchreis.uibooster.model.FormElementChangeListener;
 import de.milchreis.uibooster.model.UiBoosterOptions;
+import de.milchreis.uibooster.model.formelements.SelectionFormElement;
 import de.milchreis.uibooster.model.formelements.TextFormElement;
 import java.awt.Font;
 import java.awt.image.BufferedImage;
@@ -178,14 +179,16 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         refresh();
         index = images.size() - 1;
         dialog.close();
-        var form = booster.createForm(play.getDeviceName()).
+        booster.createForm(play.getDeviceName()).
                 addCustomElement(new IconFormElement(getImageIcon(null, images.get(index).get(1).getEventData().replace(
                         remoteFromPath, remoteToPath)))).
                 setID("image").
                 startRow().
                 addSelection("Events", elements).setID("events").
                 addText("Duration", play.formatDuration(images.get(index).get(0).getEventTime(), images.get(index).get(2).
-                        getEventTime()),true).setID("duration").
+                        getEventTime()), true).setID("duration").
+                addText("Before", String.valueOf(playBefore)).setID("before").
+                addText("After", String.valueOf(playAfter)).setID("after").
                 addSelection("Event Type", "Motion", "SMTP").setID("eventType").
                 endRow().
                 startRow().
@@ -251,6 +254,12 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         final var command = new ArrayList<String>();
         command.add("ffplay");
         command.add("-autoexit");
+        command.add("-fflags");
+        command.add("nobuffer");
+        command.add("-analyzeduration");
+        command.add("0");
+        command.add("-probesize");
+        command.add("32");
         command.add(fileName);
         command.add("-ss");
         command.add(String.valueOf(start));
@@ -276,6 +285,23 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     }
 
     /**
+     * Poor man's Integer validator.
+     *
+     * @param str String value.
+     * @return true if integer.
+     */
+    public boolean isInteger(String str) {
+        // This handles negative signs, leading/trailing spaces, and format
+        try {
+            Integer.valueOf(str);
+            return true;
+        } catch (NumberFormatException e) {
+            // If parsing fails, it's not a valid integer
+            return false;
+        }
+    }
+
+    /**
      * onChange listener for form elements.
      *
      * @param fe Form element.
@@ -286,7 +312,7 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     public void onChange(final FormElement fe, final Object o, final Form form) {
         final var label = (JLabel) form.getById("image").getValue();
         switch (fe.getId()) {
-            case "play":
+            case "play" -> {
                 final var bufferStart = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
                 final var motionStart = images.get(index).get(0).getEventTime().toInstant();
                 final var motionStop = images.get(index).get(2).getEventTime().toInstant();
@@ -294,16 +320,16 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
                 final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
                 playFile(fileName, start.getSeconds(), duration.getSeconds());
-                break;
-            case "events":
+            }
+            case "events" -> {
                 var value = (String) form.getById("events").getValue();
                 // This will happen when Refresh pressed bacause selection list is updated
                 if (!StringUtils.isEmpty(value)) {
                     index = timestamps.get(value);
                     label.setIcon(getImageIcon(form, images.get(index).get(1).getEventData().replace(remoteFromPath, remoteToPath)));
                 }
-                break;
-            case "eventType":
+            }
+            case "eventType" -> {
                 var selectedType = (String) o;
                 if ("SMTP".equals(selectedType)) {
                     smtpImages = true;
@@ -313,16 +339,35 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 refresh();
                 var selection = form.getById("events").toSelection();
                 selection.setPossibilities(elements);
-                break;
-            case "refresh":
+            }
+            case "refresh" -> {
                 refresh();
-                selection = form.getById("events").toSelection();
+                SelectionFormElement selection = form.getById("events").toSelection();
                 selection.setPossibilities(elements);
-                break;
-            case "duration":
-                break;                
-            default:
-                booster.showErrorDialog(String.format("%s onChange not handled", fe.getId()), "Error");
+            }
+            case "duration" -> {
+            }
+            case "before" -> {
+                var before = form.getById("before").asString();
+                if (before != null && !before.isEmpty()) {
+                    if (isInteger(before)) {
+                        playBefore = Integer.valueOf(before);
+                    } else {
+                        new UiBooster().showErrorDialog("Only integer values allowed.", "ERROR");
+                    }
+                }
+            }
+            case "after" -> {
+                var after = form.getById("after").asString();
+                if (after != null && !after.isEmpty()) {
+                    if (isInteger(after)) {
+                        playAfter = Integer.valueOf(after);
+                    } else {
+                        new UiBooster().showErrorDialog("Only integer values allowed.", "ERROR");
+                    }
+                }
+            }
+            default -> booster.showErrorDialog(String.format("%s onChange not handled", fe.getId()), "Error");
         }
         update(form);
     }
