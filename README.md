@@ -203,9 +203,9 @@ Play UI is a [UiBooster](https://github.com/Milchreis/UiBooster) based UI that u
 You can set before and after seconds to see what was before and after event. You can also save event as video.
 ![Client](images/client.png)
 * `sudo apt install sshfs`
-* `sudo mkdir /mnt/data` or whatever local dir you want to use
+* `sudo mkdir /mnt/data1` or whatever local dir you want to use
 * `sudo chown username:username /mnt/data` change username to your local user
-* `sshfs servadmin@192.168.1.99:/data1/ /mnt/data` change ip, remote and local dirs as needed
+* `sshfs servadmin@192.168.1.99:/data1/ /mnt/data1` change ip, remote and local dirs as needed
 * `cd alarmbian` this assumes you compiled project on the UI machine
 * Use [application.properties](https://raw.githubusercontent.com/sgjava/alarmbian/refs/heads/main/client/src/main/resources/application.properties) to make your own client.properties
 * `java -Djava.library.path=/home/username/opencv/build/lib -jar client/target/client-1.0.0-SNAPSHOT.jar --spring.config.location=client.properties`
