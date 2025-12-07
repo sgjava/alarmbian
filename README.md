@@ -204,7 +204,7 @@ You can set before and after seconds to see what was before and after event. You
 ![Client](images/client.png)
 * `sudo apt install sshfs`
 * `sudo mkdir /mnt/data1` or whatever local dir you want to use
-* `sudo chown username:username /mnt/data` change username to your local user
+* `sudo chown username:username /mnt/data1` change username to your local user
 * `sshfs servadmin@192.168.1.99:/data1/ /mnt/data1` change ip, remote and local dirs as needed
 * `cd alarmbian` this assumes you compiled project on the UI machine
 * Use [application.properties](https://raw.githubusercontent.com/sgjava/alarmbian/refs/heads/main/client/src/main/resources/application.properties) to make your own client.properties
