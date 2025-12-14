@@ -208,4 +208,4 @@ You can set before and after seconds to see what was before and after event. You
 * `sshfs servadmin@192.168.1.99:/data1/ /mnt/data1` change ip, remote and local dirs as needed
 * `cd alarmbian` this assumes you compiled project on the UI machine
 * Use [application.properties](https://raw.githubusercontent.com/sgjava/alarmbian/refs/heads/main/client/src/main/resources/application.properties) to make your own client.properties
-* `java -Djava.library.path=/home/username/opencv/build/lib -jar client/target/client-1.0.0-SNAPSHOT.jar --spring.config.location=client.properties`
+* `java -Djava.library.path=/home/username/opencv/build/lib -Dspring.config.location=file:cam1.properties -jar client/target/client-1.0.0-SNAPSHOT.jar`
