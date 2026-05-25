@@ -1,10 +1,11 @@
 #!/bin/bash
 #
-# Created on May 23, 2026
+# Created on May 24, 2026
 #
 # @author: sgoldsmith
 #
-# Install core system dependencies, JDK 25, and build tools for Alarmbian.
+# Install dependencies, JDK 25, Maven, Ant, and Gradle.
+# Local SDKMAN setup with global environment execution flags.
 #
 # Steven P. Goldsmith
 # sgjava@gmail.com
@@ -46,20 +47,25 @@ case $ARCH in
         sdk default java 25-arm32-local
         ;;
     *)
-        # Default for aarch64 (ARM64) or x86_64
         sdk install java 25-zulu || true
         sdk default java 25-zulu
         ;;
 esac
 
-# Install standard build automation tools via SDKMAN
+echo "--------------------------------------------------"
+echo "STEP 4: Install Build Tooling"
+echo "--------------------------------------------------"
+# Install core build engines via local SDKMAN profile
 sdk install maven || true
 sdk install ant || true
 sdk install gradle 9.3.0 || true
-sdk default gradle 9.3.0
+
+sdk default maven 3.9.9 || true
+sdk default ant 1.10.15 || true
+sdk default gradle 9.3.0 || true
 
 echo "--------------------------------------------------"
-echo "STEP 4: Global Environment Persistence"
+echo "STEP 5: Global Environment Persistence"
 echo "--------------------------------------------------"
 update_env_var() {
     local var_name=$1
@@ -78,24 +84,30 @@ GRADLE_P="$SDKMAN_DIR/candidates/gradle/current"
 
 update_env_var "JAVA_HOME" "$JAVA_P"
 update_env_var "JAVA_OPTS" "-Djava.io.tmpdir=$JAVA_TMP"
-update_env_var "M2_HOME" "$M2_P"
-update_env_var "ANT_HOME" "$ANT_P"
-update_env_var "GRADLE_HOME" "$GRADLE_P"
 
-# Rebuild generic scannable system PATH
-NEW_PATH="$JAVA_P/bin:$M2_P/bin:$ANT_P/bin:$GRADLE_P/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-update_env_var "PATH" "$NEW_PATH"
+if [ "$ARCH" == "x86_64" ]; then
+    NEW_PATH="$JAVA_P/bin:$M2_P/bin:$ANT_P/bin:$GRADLE_P/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    update_env_var "PATH" "$NEW_PATH"
+    update_env_var "M2_HOME" "$M2_P"
+    update_env_var "ANT_HOME" "$ANT_P"
+    update_env_var "GRADLE_HOME" "$GRADLE_P"
+else
+    # Maintain simple path structure for ARM platforms missing the tools profile
+    update_env_var "PATH" "$JAVA_P/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+fi
 
 echo "--------------------------------------------------"
-echo "STEP 5: Verification"
+echo "STEP 6: Comprehensive Verification"
 echo "--------------------------------------------------"
 [[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]] && source "$SDKMAN_DIR/bin/sdkman-init.sh"
 
 printf "Java:      " && java -version 2>&1 | head -n 1
-printf "Maven:     " && mvn -version | head -n 1
-printf "Ant:       " && ant -version | head -n 1
-printf "Gradle:    " && gradle -version | grep "Gradle"
 
+if [ "$ARCH" == "x86_64" ]; then
+    printf "Maven:     " && mvn -version | head -n 1
+    printf "Ant:       " && ant -version | head -n 1
+    printf "Gradle:    " && gradle -version | grep "Gradle"
+fi
 echo "--------------------------------------------------"
 echo "Setup Complete! Please run: source /etc/environment"
 echo "--------------------------------------------------"

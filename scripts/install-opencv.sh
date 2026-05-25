@@ -1,22 +1,31 @@
 #!/bin/bash
 #
-# Created on May 23, 2026
+# Created on May 24, 2026
 #
 # @author: sgoldsmith
 #
-# Build and install OpenCV from source using SDKMAN Ant/Java and system FFmpeg.
+# Build and install OpenCV from source using SDKMAN Ant/Java and custom shared FFmpeg.
+# Clones repository source trees directly into $HOME.
 #
 # Steven P. Goldsmith
 # sgjava@gmail.com
 
 set -e
 
-OPENCV_VERSION="4.11.0"
-BUILD_DIR="$HOME/opencv_build"
+OPENCV_VERSION="4.13.0"
 INSTALL_PREFIX="/usr/local"
 
 echo "--------------------------------------------------"
-echo "STEP 1: Install Native Subsystem Dependencies"
+echo "STEP 1: Purge Old OpenCV Installation Artifacts"
+echo "--------------------------------------------------"
+echo "Removing old libraries and jars from $INSTALL_PREFIX..."
+sudo rm -rf "$INSTALL_PREFIX/include/opencv4"
+sudo rm -f "$INSTALL_PREFIX/lib/libopencv_"*
+sudo rm -rf "$INSTALL_PREFIX/share/opencv4"
+sudo rm -rf "$INSTALL_PREFIX/share/java/opencv4"
+
+echo "--------------------------------------------------"
+echo "STEP 2: Install Native Subsystem Dependencies"
 echo "--------------------------------------------------"
 sudo apt update
 sudo apt install -y \
@@ -31,42 +40,51 @@ sudo apt install -y \
     libv4l-dev \
     libxvidcore-dev \
     libx264-dev \
-    libatlas-base-dev \
-    gfortran
-
-echo "--------------------------------------------------"
-echo "STEP 2: Install FFmpeg Development Libraries"
-echo "--------------------------------------------------"
-sudo apt install -y \
     libavcodec-dev \
     libavformat-dev \
     libswscale-dev \
     libavutil-dev \
-    libavfilter-dev \
-    libswresample-dev
+    libswresample-dev \
+    libatlas-base-dev \
+    gfortran
 
 echo "--------------------------------------------------"
-echo "STEP 3: Clone OpenCV Repositories"
+echo "STEP 3: Clone or Update OpenCV Repositories in $HOME"
 echo "--------------------------------------------------"
-mkdir -p "$BUILD_DIR"
-cd "$BUILD_DIR"
+cd "$HOME"
 
+# Silently disable the detached HEAD advice notice for cleaner logs
+git config --global advice.detachedHead false
+
+# Check the actual source file for the version string instead of relying on git tags
+if [ -d "opencv" ]; then
+    if [ -f "opencv/CMakeLists.txt" ] && ! grep -q "OPENCV_VERSION \"$OPENCV_VERSION\"" opencv/CMakeLists.txt; then
+        echo "Version mismatch or old repo detected. Wiping opencv directory..."
+        rm -rf opencv
+    fi
+fi
+
+if [ -d "opencv_contrib" ]; then
+    if [ ! -d "opencv_contrib/modules" ]; then
+        echo "Corrupt or incomplete contrib repo detected. Wiping..."
+        rm -rf opencv_contrib
+    fi
+fi
+
+# Clean clone target versions directly into $HOME if directories are absent
 if [ ! -d "opencv" ]; then
+    echo "Cloning opencv version $OPENCV_VERSION..."
     git clone --depth 1 --branch "$OPENCV_VERSION" https://github.com/opencv/opencv.git
-else
-    cd opencv && git fetch --tags && git checkout "$OPENCV_VERSION" && cd ..
 fi
 
 if [ ! -d "opencv_contrib" ]; then
+    echo "Cloning opencv_contrib version $OPENCV_VERSION..."
     git clone --depth 1 --branch "$OPENCV_VERSION" https://github.com/opencv/opencv_contrib.git
-else
-    cd opencv_contrib && git fetch --tags && git checkout "$OPENCV_VERSION" && cd ..
 fi
 
 echo "--------------------------------------------------"
 echo "STEP 4: Resolve SDKMAN Environment paths"
 echo "--------------------------------------------------"
-# Source environment variables if they haven't been picked up in the current shell
 if [ -f /etc/environment ]; then
     source /etc/environment
 fi
@@ -74,7 +92,6 @@ if [ -f "$HOME/.sdkman/bin/sdkman-init.sh" ]; then
     source "$HOME/.sdkman/bin/sdkman-init.sh"
 fi
 
-# Verify core tooling from your install-java setup is active
 if [ -z "$JAVA_HOME" ] || [ -z "$ANT_HOME" ]; then
     echo "ERROR: JAVA_HOME or ANT_HOME is missing from the environment."
     echo "Please ensure you have sourced /etc/environment or restarted your shell."
@@ -88,13 +105,14 @@ echo "Using Ant Executable: $ANT_BIN"
 echo "--------------------------------------------------"
 echo "STEP 5: Configure Build via CMake and Ninja"
 echo "--------------------------------------------------"
-mkdir -p "$BUILD_DIR/opencv/build"
-cd "$BUILD_DIR/opencv/build"
+rm -rf "$HOME/opencv/build"
+mkdir -p "$HOME/opencv/build"
+cd "$HOME/opencv/build"
 
 cmake -G Ninja \
     -D CMAKE_BUILD_TYPE=RELEASE \
     -D CMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-    -D OPENCV_EXTRA_MODULES_PATH="$BUILD_DIR/opencv_contrib/modules" \
+    -D OPENCV_EXTRA_MODULES_PATH="$HOME/opencv_contrib/modules" \
     -D CPU_BASELINE=NATIVE \
     -D WITH_ENABLE_EXTRA_CLEAN_COMPILE=ON \
     -D OPENCV_ENABLE_NONFREE=ON \
@@ -134,6 +152,6 @@ echo "--------------------------------------------------"
 echo "OpenCV build complete!"
 echo "--------------------------------------------------"
 echo "Your Java build artifacts can be located here:"
-ls -l "$BUILD_DIR/opencv/build/bin/opencv_"* 2>/dev/null || true
-ls -l "$BUILD_DIR/opencv/build/lib/libopencv_java"* 2>/dev/null || true
+ls -l "$HOME/opencv/build/bin/opencv_"* 2>/dev/null || true
+ls -l "$HOME/opencv/build/lib/libopencv_java"* 2>/dev/null || true
 echo "--------------------------------------------------"
