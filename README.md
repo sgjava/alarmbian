@@ -3,7 +3,7 @@
 Alarmbian is a cross platform DIY NVR at its core, but it can also be used to
 build your own smart cameras. The cool thing is you can use almost any board
 Armbian supports, an x86 mini PC, an old x86 based PC and probably Windows
-since the code is based on Java, MediaMTX, FFMPEG, OpenCV and Deepstack.
+since the code is based on Java, MediaMTX, FFMPEG and OpenCV.
 All testing is on Ubuntu 24.04 at this point.
 
 Unlike other NVR software, Alarmbian can handle h265+ or any stream FFMPEG can handle.
@@ -13,10 +13,9 @@ cameras can send images to. This is handy with the camera's built-in AI detectio
 * Motion detection built in with the ability to add other types of realtime detection.
 * History image shows entire motion event in a single image.
 * Images sent via AI detection handled.
-* Use Deepstack or SenseAI.
 * Java based UI to view events and play video.
 
-I'm leaving optimized install up to the user since there are so many ways to optimize FFMPEG, OpenCV, Deepstack, etc. This is truly
+I'm leaving optimized install up to the user since there are so many ways to optimize FFMPEG, OpenCV, etc. This is truly
 a DIY system. I'll point you in the right direction hopefully.
 
 ## Install FFMPEG
@@ -113,36 +112,6 @@ Add Supervisor job
 * `sudo nano /etc/supervisor/conf.d/smtp.conf`
 * `sudo supervisorctl update`
 * Check logs dir for issues
-
-## Install Docker and run as non-root user
-* `sudo apt install apt-transport-https ca-certificates curl software-properties-common`
-* `curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg`
-* `echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null`
-* `sudo apt update`
-* `sudo apt install docker-ce`
-* `sudo usermod -aG docker ${USER}`
-* Close shell and open a new one
-* `docker version` 
-
-## Deepstack
-This is for optional Deepstack 2.0 support. This can be run from a different system
-if needed. There is no longer support for ARM32, but all the rest of the stack
-supports ARM32.Use ARM64 or x86_64 to run Deepstack. Make sure you use the correct
- version of `docker run` if you want hardware acceleration, etc. Below is the CPU
-based version.
-
-Please note Deepstack is very CPU intensive without hardware acceleration. Trying to
-run multiple cameras and Deepstack on the same low end hardware will result in
-poor performance.
-* ARM64
-  * `docker run --detach --restart unless-stopped -e VISION-DETECTION=True -e MODE=Medium -v localstorage:/datastore -p 5000:5000 --name deepstack deepquestai/deepstack:arm64`
-* x86_64
-  * `docker run --detach --restart unless-stopped -e VISION-DETECTION=True -e MODE=Medium -v localstorage:/datastore -p 5000:5000 --name deepstack deepquestai/deepstack`
-* `docker update --restart unless-stopped deepstack`
-To stop
-* `docker stop deepstack`
-To remove volume
-* `docker volume rm localstorage`
 
 ## Play UI
 Play UI is a [UiBooster](https://github.com/Milchreis/UiBooster) based UI that uses OpenCV and ffplay to view events and play videos.

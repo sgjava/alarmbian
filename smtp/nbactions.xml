@@ -1,20 +1,42 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <actions>
-        <action>
-            <actionName>run.single.main</actionName>
-            <packagings>
-                <packaging>*</packaging>
-            </packagings>
-            <goals>
-                <goal>process-classes</goal>
-                <goal>org.codehaus.mojo:exec-maven-plugin:3.1.0:exec</goal>
-            </goals>
-            <properties>
-                <exec.vmArgs>-Djava.library.path=/home/servadmin/opencv/build/lib -Dspring.config.location=classpath:/application.properties</exec.vmArgs>
-                <exec.args>${exec.vmArgs} -classpath %classpath ${exec.mainClass} ${exec.appArgs}</exec.args>
-                <exec.executable>java</exec.executable>
-                <exec.mainClass>${packageClassName}</exec.mainClass>
-                <exec.classpathScope>${classPathScope}</exec.classpathScope>
-            </properties>
-        </action>
-    </actions>
+    <action>
+        <actionName>run</actionName>
+        <packagings>
+            <packaging>jar</packaging>
+        </packagings>
+        <goals>
+            <goal>spring-boot:run</goal>
+        </goals>
+        <properties>
+            <spring-boot.run.jvmArguments>--enable-native-access=ALL-UNNAMED -Djava.library.path=${user.home}/opencv/build/lib</spring-boot.run.jvmArguments>
+        </properties>
+    </action>
+    
+    <action>
+        <actionName>debug</actionName>
+        <packagings>
+            <packaging>jar</packaging>
+        </packagings>
+        <goals>
+            <goal>spring-boot:run</goal>
+        </goals>
+        <properties>
+            <spring-boot.run.jvmArguments>--enable-native-access=ALL-UNNAMED -Djava.library.path=${user.home}/opencv/build/lib -agentlib:jdwp=transport=dt_socket,server=n,address=${jpda.address}</spring-boot.run.jvmArguments>
+            <jpda.listen>true</jpda.listen>
+        </properties>
+    </action>
+    
+    <action>
+        <actionName>profile</actionName>
+        <packagings>
+            <packaging>jar</packaging>
+        </packagings>
+        <goals>
+            <goal>spring-boot:run</goal>
+        </goals>
+        <properties>
+            <spring-boot.run.jvmArguments>--enable-native-access=ALL-UNNAMED -Djava.library.path=${user.home}/opencv/build/lib -agentpath:${user.home}/netbeans/profiler/lib/deployed/jdk16/linux-amd64/libprofilerinterface.so=${user.home}/netbeans/profiler/lib,5140,10</spring-boot.run.jvmArguments>
+        </properties>
+    </action>
+</actions>
