@@ -40,8 +40,8 @@ import org.springframework.stereotype.Component;
 import picocli.CommandLine.Command;
 
 /**
- * Alarmbian player UI based on UI Booster. Optimized to prevent native image
- * loading exceptions.
+ * Alarmbian player UI based on UI Booster. Adjusted for conditional list
+ * extraction math.
  *
  * @author Steven P. Goldsmith
  * @version 1.0.0
@@ -154,6 +154,25 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     }
 
     /**
+     * Resolves the target image path string safely depending on selection type.
+     *
+     * @param eventGroup List containing matching transaction entries.
+     * @return File path destination string, or empty if unresolved.
+     */
+    private String resolveImagePath(final List<Event> eventGroup) {
+        if (eventGroup == null || eventGroup.isEmpty()) {
+            return "";
+        }
+        // If processing standard Motion event, path lives in Index 0 (Start Event)
+        // If processing unified SMTP list, pull direct from the available node
+        final var targetEvent = smtpImages ? eventGroup.get(0) : eventGroup.get(0);
+        if (targetEvent != null && targetEvent.getEventData() != null) {
+            return targetEvent.getEventData().replace(remoteFromPath, remoteToPath);
+        }
+        return "";
+    }
+
+    /**
      * Refresh from database.
      */
     public void refresh() {
@@ -168,11 +187,15 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         var i = 0;
         // Build Map of timestamps to image index.
         for (final var image : images) {
-            timestamps.put(play.formatTimestamp(image.get(0).getEventTime()), i++);
+            if (!image.isEmpty()) {
+                timestamps.put(play.formatTimestamp(image.get(0).getEventTime()), i++);
+            }
         }
         // Build list of timestamps
         for (i = images.size(); i-- > 0;) {
-            elements.add(play.formatTimestamp(images.get(i).get(0).getEventTime()));
+            if (!images.get(i).isEmpty()) {
+                elements.add(play.formatTimestamp(images.get(i).get(0).getEventTime()));
+            }
         }
         index = images.size() - 1;
     }
@@ -192,17 +215,20 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         dialog.close();
 
         var initialPath = "";
-        if (index >= 0 && images.get(index).size() > 1 && images.get(index).get(1).getEventData() != null) {
-            initialPath = images.get(index).get(1).getEventData().replace(remoteFromPath, remoteToPath);
+        if (index >= 0) {
+            initialPath = resolveImagePath(images.get(index));
         }
+
+        final var initialDuration = (index >= 0 && images.get(index).size() > 2)
+                ? play.formatDuration(images.get(index).get(0).getEventTime(), images.get(index).get(2).getEventTime())
+                : "00:00:00";
 
         booster.createForm(play.getDeviceName()).
                 addCustomElement(new IconFormElement(getImageIcon(null, initialPath))).
                 setID("image").
                 startRow().
                 addSelection("Events", elements).setID("events").
-                addText("Duration", play.formatDuration(images.get(index).get(0).getEventTime(), images.get(index).get(2).
-                        getEventTime()), true).setID("duration").
+                addText("Duration", initialDuration, true).setID("duration").
                 addText("Before", String.valueOf(playBefore)).setID("before").
                 addText("After", String.valueOf(playAfter)).setID("after").
                 addSelection("Event Type", "Motion", "SMTP").setID("eventType").
@@ -232,17 +258,14 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
      * @return Image icon asset.
      */
     public ImageIcon getImageIcon(final Form form, final String fileName) {
-        // Guard check: if string is blank or file is completely absent from the host filesystem, bypass OpenCV entirely
         if (fileName == null || fileName.isEmpty() || !new File(fileName).exists()) {
             log.debug("Image target blank or not present on file system: {}", fileName);
             return new ImageIcon(new BufferedImage(xMax, yMax, BufferedImage.TYPE_INT_RGB));
         }
 
         ImageIcon imageIcon = null;
-        // Read file asset out into structural native matrix
         source = Imgcodecs.imread(fileName);
 
-        // CRITICAL: Stop OpenCV from panicking if target file was corrupted or cannot build image planes
         if (source.empty()) {
             log.warn("OpenCV read execution resulted in empty matrix for target: {}", fileName);
             if (source != null) {
@@ -256,7 +279,6 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
             type = BufferedImage.TYPE_3BYTE_BGR;
         }
 
-        // Downscale matrices exceeding runtime max dimensions
         if (source.cols() > xMax) {
             Imgproc.resize(source, dest, new Size(xMax, yMax), 0, 0, Imgproc.INTER_LINEAR);
             source.release();
@@ -275,14 +297,16 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
      * @param form Form to update.
      */
     public void update(final Form form) {
-        final var duration = (TextFormElement) form.getById("duration");
-        duration.setValue(play.formatDuration(images.get(index).get(0).getEventTime(), images.get(index).get(2).getEventTime()));
+        if (index >= 0 && images.get(index).size() > 2) {
+            final var duration = (TextFormElement) form.getById("duration");
+            duration.setValue(play.formatDuration(images.get(index).get(0).getEventTime(), images.get(index).get(2).getEventTime()));
+        }
     }
 
     /**
      * Use ffmpeg to save file clip.
      *
-     * * @param fileName Video buffer file.
+     * @param fileName Video buffer file.
      * @param start Start offset.
      * @param duration Duration in seconds.
      * @param outputFileName Output file name.
@@ -391,35 +415,35 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         final var label = (JLabel) form.getById("image").getValue();
         switch (fe.getId()) {
             case "play" -> {
-                final var bufferStart = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
-                final var motionStart = images.get(index).get(0).getEventTime().toInstant();
-                final var motionStop = images.get(index).get(2).getEventTime().toInstant();
-                final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
-                final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
-                final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
-                playFile(fileName, start.getSeconds(), duration.getSeconds());
+                if (index >= 0 && !images.get(index).isEmpty()) {
+                    final var bufferStart = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
+                    final var motionStart = images.get(index).get(0).getEventTime().toInstant();
+                    final var motionStop = (images.get(index).size() > 2) ? images.get(index).get(2).getEventTime().toInstant() : motionStart.plusSeconds(10);
+                    final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
+                    final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
+                    final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
+                    playFile(fileName, start.getSeconds(), duration.getSeconds());
+                }
             }
             case "save" -> {
-                final var bufferStart = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
-                final var motionStart = images.get(index).get(0).getEventTime().toInstant();
-                final var motionStop = images.get(index).get(2).getEventTime().toInstant();
-                final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
-                final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
-                final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
-                final var file = new File(images.get(index).get(1).getEventData().replace("jpg", "mkv"));
-                final var saveFileName = file.getName();
-                saveFile(fileName, start.getSeconds(), duration.getSeconds(), String.format("%s%s%s", localPath,
-                        File.separator, saveFileName));
+                if (index >= 0 && !images.get(index).isEmpty()) {
+                    final var bufferStart = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
+                    final var motionStart = images.get(index).get(0).getEventTime().toInstant();
+                    final var motionStop = (images.get(index).size() > 2) ? images.get(index).get(2).getEventTime().toInstant() : motionStart.plusSeconds(10);
+                    final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
+                    final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
+                    final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
+                    final var file = new File(images.get(index).get(0).getEventData().replace("jpg", "mkv"));
+                    final var saveFileName = file.getName();
+                    saveFile(fileName, start.getSeconds(), duration.getSeconds(), String.format("%s%s%s", localPath,
+                            File.separator, saveFileName));
+                }
             }
             case "events" -> {
                 final var value = (String) form.getById("events").getValue();
                 if (!StringUtils.isEmpty(value)) {
                     index = timestamps.get(value);
-                    var rawPath = "";
-                    if (images.get(index).size() > 1 && images.get(index).get(1).getEventData() != null) {
-                        rawPath = images.get(index).get(1).getEventData().replace(remoteFromPath, remoteToPath);
-                    }
-                    label.setIcon(getImageIcon(form, rawPath));
+                    label.setIcon(getImageIcon(form, resolveImagePath(images.get(index))));
                 }
             }
             case "eventType" -> {
@@ -428,14 +452,19 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 refresh();
                 final var selection = form.getById("events").toSelection();
                 selection.setPossibilities(elements);
+                if (index >= 0) {
+                    label.setIcon(getImageIcon(form, resolveImagePath(images.get(index))));
+                }
             }
             case "refresh" -> {
                 refresh();
                 final var selection = (SelectionFormElement) form.getById("events");
                 selection.setPossibilities(elements);
+                if (index >= 0) {
+                    label.setIcon(getImageIcon(form, resolveImagePath(images.get(index))));
+                }
             }
             case "duration" -> {
-                // Read-only text indicator, no mutation side effects handled
             }
             case "before" -> {
                 final var before = form.getById("before").asString();
