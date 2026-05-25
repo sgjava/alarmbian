@@ -40,8 +40,8 @@ import org.springframework.stereotype.Component;
 import picocli.CommandLine.Command;
 
 /**
- * Alarmbian player UI based on UI Booster. Adjusted for conditional list
- * extraction math.
+ * Alarmbian player UI based on UI Booster. Fixed event list index mappings to
+ * accurately restore standard motion event rendering logic.
  *
  * @author Steven P. Goldsmith
  * @version 1.0.0
@@ -154,8 +154,10 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     }
 
     /**
-     * Resolves the target image path string safely depending on selection type.
+     * Resolves the target image path string depending on selection type. Motion
+     * lists look at index 1 for the snapshot path; SMTP lists look at index 0.
      *
+     * @final
      * @param eventGroup List containing matching transaction entries.
      * @return File path destination string, or empty if unresolved.
      */
@@ -163,9 +165,15 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         if (eventGroup == null || eventGroup.isEmpty()) {
             return "";
         }
-        // If processing standard Motion event, path lives in Index 0 (Start Event)
-        // If processing unified SMTP list, pull direct from the available node
-        final var targetEvent = smtpImages ? eventGroup.get(0) : eventGroup.get(0);
+
+        final Event targetEvent;
+        if (smtpImages) {
+            targetEvent = eventGroup.get(0);
+        } else {
+            // Restore legacy motion mapping logic targeting index 1 snapshot
+            targetEvent = (eventGroup.size() > 1) ? eventGroup.get(1) : eventGroup.get(0);
+        }
+
         if (targetEvent != null && targetEvent.getEventData() != null) {
             return targetEvent.getEventData().replace(remoteFromPath, remoteToPath);
         }
