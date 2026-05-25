@@ -18,8 +18,8 @@
     <url>https://github.com/sgjava/alarmbian/server</url>
 
     <properties>
-        <commons-io.version>2.21.0</commons-io.version> 
-        <feign-jackson.version>13.6</feign-jackson.version>
+        <commons-io.version>2.22.0</commons-io.version> 
+        <feign-jackson.version>13.12</feign-jackson.version>
         <jaffree.version>2024.08.29</jaffree.version>
     </properties>
 

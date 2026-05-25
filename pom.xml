@@ -5,7 +5,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.8</version> 
+        <version>4.0.6</version> 
         <relativePath/> 
     </parent>
 
@@ -28,7 +28,7 @@
     <properties>
         <java.version>25</java.version>
         <maven.compiler.release>${java.version}</maven.compiler.release>
-        <lombok.version>1.18.42</lombok.version>        
+        <lombok.version>1.18.46</lombok.version>        
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.compiler.source>25</maven.compiler.source>
@@ -39,6 +39,29 @@
         <opencv.lib>${user.home}/opencv/build/lib</opencv.lib>
         <opencv.version>4.13.0</opencv.version>
     </properties>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.14.1</version>
+                <configuration>
+                    <release>${java.version}</release>
+                    <compilerArgs>
+                        <arg>-Xlint:-processing</arg>
+                    </compilerArgs>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
     
     <!-- Do 'mvn initialize -Pinstall-opencv' once to install OpenCV jar you compiled -->
     <profiles>
@@ -75,5 +98,5 @@
                 </plugins>
             </build>
         </profile>
-    </profiles>             
+    </profiles>                     
 </project>
