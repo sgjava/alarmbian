@@ -36,10 +36,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * Local SMTP server to get camera events.
+ * Local SMTP server to ingest smart hardware camera event notifications.
+ * <p>
+ * This broker intercepts camera email triggers, parses device identifiers and
+ * externalized target classifications, isolates binary payloads, and persists
+ * records natively.
+ * </p>
  *
  * @author Steven P. Goldsmith
- * @version 1.0.1
+ * @version 1.1.0
  * @since 1.0.0
  */
 @Component
@@ -47,113 +52,137 @@ import org.springframework.stereotype.Component;
 public class SmtpServer {
 
     /**
-     * Bind address.
+     * Network interface address to bind the SMTP receptor.
      */
     @Value("${smtp.bind}")
     private String bind;
+
     /**
-     * Port.
+     * Active network port for incoming mail listening.
      */
     @Value("${smtp.port}")
     private Integer port;
+
     /**
-     * Wait MS checking for messages.
+     * Thread sleep threshold in milliseconds when awaiting message sweeps.
      */
     @Value("${wait}")
     private Long wait;
+
     /**
-     * Directory pattern.
+     * Pattern layout for generating dynamic output sub-directories.
      */
     @Value("${dir.pattern}")
     private String dirPattern;
+
     /**
-     * SMTP user.
+     * Account security username for internal user authentication profiles.
      */
     @Value("${smtp.user}")
     private String user;
+
     /**
-     * AMTP password.
+     * Account security password credential for internal user authentication.
      */
     @Value("${smtp.password}")
     private String password;
+
     /**
-     * SMTP email.
+     * Root routing electronic mail address rule target.
      */
     @Value("${smtp.email}")
     private String email;
+
     /**
-     * SMTP threads.
+     * Maximum capacity bounds for the processing fixed worker pool threads.
      */
     @Value("${smtp.threads}")
     private Integer threads;
+
     /**
-     * File pattern.
+     * File naming pattern syntax applied to binary file outputs.
      */
     @Value("${file.pattern}")
     private String filePattern;
+
     /**
-     * Log pattern.
+     * Log time visual string pattern schema mapping.
      */
     @Value("${log.pattern}")
     private String logPattern;
+
     /**
-     * File output path.
+     * Root filesystem branch destination where media payloads write.
      */
     @Value("${output.path}")
     private String outputPath;
+
     /**
-     * Array of regex to find device name in subject or body.
+     * Array of regular expression strings designed to pull device tags from
+     * text blocks.
      */
     @Value("${device.regex}")
     private String[] deviceRegex;
-    
+
     /**
-     * Directory name formatter.
+     * Injected token-to-event key-value configurations from application
+     * properties. Example: people:SMTP_PEOPLE, vehicle:SMTP_VEHICLE
+     */
+    @Value("${smtp.classifier.mappings}")
+    private String[] classifierMappings;
+
+    /**
+     * Temporal folder dynamic destination structure mask formatter.
      */
     private DateTimeFormatter dirFormatter;
+
     /**
-     * File name formatter.
+     * Media file storage descriptor string mask formatter.
      */
     private DateTimeFormatter fileFormatter;
+
     /**
-     * Log date formatter for message received date.
+     * Internal terminal text log date-time visualization mask formatter.
      */
     private DateTimeFormatter logFormatter;
+
     /**
-     * Default to not shutting down.
+     * Control gate tracking runtime termination requests.
      */
     private final AtomicBoolean shutDown = new AtomicBoolean(false);
+
     /**
-     * Executor service.
+     * Background concurrent work thread manager boundary pool execution runner.
      */
     private ExecutorService executorService;
+
     /**
-     * Used to presist event.
+     * Persistence execution utility providing native relational state
+     * management database interactions.
      */
     @Autowired
     private EventService eventService;
+
     /**
-     * Counter for naming worker threads.
+     * Safe rolling reference index provider feeding dedicated thread
+     * identification identities.
      */
     private final AtomicLong threadCounter = new AtomicLong(0);
+
     /**
-     * Server instance.
+     * Isolated micro-server process pipeline anchor interface instance.
      */
     private GreenMail greenMail;
 
     /**
-     * Start SMTP server.
+     * Starts and provisions the localized SMTP listener framework context.
      */
     @PostConstruct
     public void start() {
-        // Use a custom ThreadFactory to assign an UncaughtExceptionHandler
         executorService = Executors.newFixedThreadPool(threads, r -> {
-            var t = new Thread(r);
-            // Use AtomicLong for unique ID
+            final var t = new Thread(r);
             t.setName("SMTP-Worker-" + threadCounter.incrementAndGet());
-            // Set the handler that will catch and log any unchecked exception
             t.setUncaughtExceptionHandler((thread, e) -> {
-                // This logs the full stack trace to your configured logger (Slf4j)
                 log.error("FATAL: Unhandled exception in SMTP worker thread: {}", thread.getName(), e);
             });
             return t;
@@ -161,7 +190,7 @@ public class SmtpServer {
         logFormatter = DateTimeFormatter.ofPattern(logPattern).withZone(ZoneId.systemDefault());
         dirFormatter = DateTimeFormatter.ofPattern(dirPattern).withZone(ZoneId.systemDefault());
         fileFormatter = DateTimeFormatter.ofPattern(filePattern).withZone(ZoneId.systemDefault());
-        var setup = new ServerSetup(port, bind, ServerSetup.PROTOCOL_SMTP);
+        final var setup = new ServerSetup(port, bind, ServerSetup.PROTOCOL_SMTP);
         greenMail = new GreenMail(setup);
         try {
             greenMail.getManagers().getUserManager().createUser(email, user, password);
@@ -174,11 +203,11 @@ public class SmtpServer {
     }
 
     /**
-     * Stop SMTP server.
+     * Shuts down processing pools and detaches network server listeners
+     * gracefully.
      */
     @PreDestroy
     public void stop() {
-        // Stop the thread pool gracefully
         if (executorService != null) {
             executorService.shutdown();
         }
@@ -189,26 +218,24 @@ public class SmtpServer {
     }
 
     /**
-     * Returns the first match for the given regex in the input string. If a named group "match" exists, that group's value is
-     * returned. Otherwise, the first capturing group is returned, or the whole match if no groups.
+     * Locates the first regex match inside text data, pulling standard group
+     * contents cleanly.
      *
-     * @param input The string to search.
-     * @param regex The regex pattern to use.
-     * @return The matched substring, or null if no match found.
+     * @param input Raw character context targeted for evaluation loops.
+     * @param regex Search pattern syntax configuration framework.
+     * @return Matched string value result, or null if boundaries match empty
+     * arrays.
      */
     public String findFirstMatch(final String input, final String regex) {
         if (input == null || regex == null) {
             return null;
         }
-        // Pattern.compile is resource-intensive; consider caching common patterns if performance is critical
-        var pattern = Pattern.compile(regex);
-        var matcher = pattern.matcher(input);
+        final var pattern = Pattern.compile(regex);
+        final var matcher = pattern.matcher(input);
         if (matcher.find()) {
-            // Prefer named group "match" if present
             try {
                 return matcher.group("match");
             } catch (IllegalArgumentException e) {
-                // No named group, fallback to first capturing group or entire match
                 return matcher.groupCount() > 0 ? matcher.group(1) : matcher.group(0);
             }
         }
@@ -216,152 +243,190 @@ public class SmtpServer {
     }
 
     /**
-     * Parse device name.
+     * Evaluates text fields to find custom registered hardware camera system
+     * IDs.
      *
-     * @param input Subject or body.
-     * @return Device name or null.
+     * @param input Context line segment extracted from headers or document
+     * parts.
+     * @return Discovered machine name string, or null if tracking profiles
+     * mismatch.
      */
     public String parseDeviceName(final String input) {
-        String deviceName = null;
+        var deviceName = (String) null;
         var regexIndex = 0;
-        // Go through regexs
         while (regexIndex < deviceRegex.length && deviceName == null) {
             deviceName = findFirstMatch(input, deviceRegex[regexIndex++]);
         }
-        // If null then no match
         return deviceName;
     }
 
     /**
-     * Parse out device name and handle multi part message.
+     * Scans textual fields to resolve hardware classifications using
+     * configuration rules.
+     * <p>
+     * Iterates through the properties matrix tokens to match sub-strings,
+     * defaulting immediately to a standard fallback motion event if unmatched.
+     * </p>
      *
-     * @param message MimeMessage.
+     * @param input Message subject line or body text segments.
+     * @return Resolved EventType tag classification.
+     */
+    public EventType parseEventType(final String input) {
+        if (input == null || classifierMappings == null) {
+            return EventType.SMTP_MOTION;
+        }
+
+        final var lowercaseInput = input.toLowerCase();
+
+        for (final var mapping : classifierMappings) {
+            final var parts = mapping.split(":");
+            if (parts.length == 2) {
+                final var token = parts[0].trim().toLowerCase();
+                final var enumName = parts[1].trim();
+
+                if (lowercaseInput.contains(token)) {
+                    try {
+                        return EventType.valueOf(enumName);
+                    } catch (IllegalArgumentException e) {
+                        log.error("Configuration error: Unknown EventType enum target mapped to token '{}': {}", token, enumName);
+                    }
+                }
+            }
+        }
+
+        return EventType.SMTP_MOTION;
+    }
+
+    /**
+     * Isolates mail elements asynchronously to parse headers and branch
+     * multipart objects.
+     *
+     * @param message Mail item context targeted for structural decomposition.
      */
     public void processMessage(final MimeMessage message) {
-        // Run the heavy lifting in a background thread
         executorService.submit(() -> {
             try {
-                // Use the thread-safe DateTimeFormatter for logging
-                var receivedInstant = message.getReceivedDate().toInstant();
+                final var receivedInstant = message.getReceivedDate().toInstant();
                 log.info("Received date: {}", logFormatter.format(receivedInstant));
-                var subject = message.getSubject();
+
+                final var subject = message.getSubject();
                 log.debug("Subject: {}", subject);
-                // Set device name based on subject
+
                 var deviceName = parseDeviceName(subject);
-                var content = message.getContent();
-                // Uses Pattern Matching for instanceof (Java 16+)
+                var eventType = parseEventType(subject);
+
+                final var content = message.getContent();
                 if (content instanceof String textBody) {
                     log.debug("Body: {}", textBody);
-                    // If device name not found in subject, try body
                     if (deviceName == null) {
                         deviceName = parseDeviceName(textBody);
                     }
+                    if (eventType == EventType.SMTP_MOTION) {
+                        eventType = parseEventType(textBody);
+                    }
                 } else if (content instanceof Multipart multipart) {
-                    processMultipart(message, multipart, deviceName);
+                    processMultipart(message, multipart, deviceName, eventType);
                 } else {
                     log.warn("Message content type not handled: {}", content.getClass().getName());
                 }
             } catch (MessagingException | IOException e) {
-                // We intentionally wrap checked exceptions here. The UncaughtExceptionHandler in start() will log this.
                 throw new RuntimeException("Error processing MimeMessage", e);
             }
         });
     }
 
     /**
-     * Process multi part message.
+     * Loops across internal attachment payloads to extract nested document
+     * trees.
      *
-     * @param message MimeMessage.
-     * @param multipart Multipart.
-     * @param deviceName Device name.
-     * @throws MessagingException possible exception.
-     * @throws IOException possible exception.
+     * @param message Mail item entity context.
+     * @param multipart Element collection layout boundary components.
+     * @param deviceName Identity token of the originating equipment node.
+     * @param eventType Determined target object classification status.
+     * @throws MessagingException Error passing elements over mail protocols.
+     * @throws IOException Error handling internal frame stream pipelines.
      */
-    public void processMultipart(final MimeMessage message, final Multipart multipart, final String deviceName) throws
+    public void processMultipart(final MimeMessage message, final Multipart multipart, final String deviceName, final EventType eventType) throws
             MessagingException, IOException {
         var devName = deviceName;
+        var evType = eventType;
         for (int i = 0; i < multipart.getCount(); i++) {
-            var part = multipart.getBodyPart(i);
+            final var part = multipart.getBodyPart(i);
             if (Part.ATTACHMENT.equalsIgnoreCase(part.getDisposition()) || part.getFileName() != null) {
-                saveAttachment(message, part, i, devName);
+                saveAttachment(message, part, i, devName, evType);
             } else if (part.isMimeType("text/plain")) {
-                var content = part.getContent().toString();
+                final var content = part.getContent().toString();
                 log.debug("Body: {}", content);
-                // If device name not found in subject try body
                 if (devName == null) {
                     devName = parseDeviceName(content);
                 }
+                if (evType == EventType.SMTP_MOTION) {
+                    evType = parseEventType(content);
+                }
             } else if (part.isMimeType("multipart/*") && part.getContent() instanceof MimeMultipart innerMultipart) {
-                processMultipart(message, innerMultipart, devName);
+                processMultipart(message, innerMultipart, devName, evType);
             }
         }
     }
 
     /**
-     * Save attachment using received timestamp for unique filename.
+     * Commits incoming files to disk branches and registers an immutable
+     * classification database record.
      *
-     * @param message MimeMessage.
-     * @param part Part.
-     * @param index Index of part.
-     * @param deviceName Device name.
+     * @param message Mail item data container.
+     * @param part Extracted component element containing raw binary blocks.
+     * @param index Position counter index within tracking multipart layers.
+     * @param deviceName Machine label associated with active alerts.
+     * @param eventType Determined semantic event category context tag.
      */
-    public void saveAttachment(final MimeMessage message, final Part part, final int index, final String deviceName) {
+    public void saveAttachment(final MimeMessage message, final Part part, final int index, final String deviceName, final EventType eventType) {
         if (deviceName == null) {
             log.error("Device name is null, cannot save attachment.");
             return;
         }
         try {
-            // Use received date if available, otherwise current time
             final var receivedDate = message.getReceivedDate();
             final var instant = (receivedDate != null) ? receivedDate.toInstant() : Instant.now();
+            final var devicePath = Path.of(outputPath, deviceName, dirFormatter.format(instant));
 
-            // 1. IMPROVEMENT: Construct path using Path API (safer and cleaner than String concatenation)
-            final Path devicePath = Path.of(outputPath, deviceName, dirFormatter.format(instant));
-
-            // Create dir
             Files.createDirectories(devicePath);
 
-            // Determine file extension (default bin)
             var extension = "bin";
             final var originalName = part.getFileName();
             if (originalName != null) {
-                var lastDot = originalName.lastIndexOf('.');
+                final var lastDot = originalName.lastIndexOf('.');
                 if (lastDot >= 0 && lastDot < originalName.length() - 1) {
                     extension = originalName.substring(lastDot + 1);
                 }
             }
-            // Construct file name and full path
+
             final var fileName = String.format("%s-smtp.%s", fileFormatter.format(instant), extension);
-            final Path filePath = devicePath.resolve(fileName);
-            // Use Files.copy() for efficient stream copying (Java 7+)
+            final var filePath = devicePath.resolve(fileName);
             try (InputStream inputStream = part.getInputStream()) {
                 Files.copy(inputStream, filePath);
             }
-            // Use Instant.ofEpochMilli(message.getReceivedDate().getTime()) or similar if Timestamp conversion is required
-            var eventTimestamp = Timestamp.from(instant);
-            eventService.create(new Event(deviceName, EventType.SMTP_MOTION.name(), filePath.toString(), eventTimestamp));
-            log.info("Saved attachment: {} ({})", filePath.toAbsolutePath(), part.getContentType());
+
+            final var eventTimestamp = Timestamp.from(instant);
+            eventService.create(new Event(deviceName, eventType.name(), filePath.toString(), eventTimestamp));
+            log.info("Saved attachment: {} ({}) with type: {}", filePath.toAbsolutePath(), part.getContentType(), eventType.name());
         } catch (MessagingException | IOException e) {
             throw new RuntimeException("Error saving attachment for device: " + deviceName, e);
         }
     }
 
     /**
-     * SMTP server message processing.
+     * Loops continuous verification scans watching for incoming greenMail
+     * transactions.
      */
     public void run() {
         log.info("Waiting for incoming email...");
         while (!shutDown.get()) {
-            // Keep the wait loop as is, though a blocking receive might be cleaner if GreenMail supported it better
-            // waitForIncomingEmail returns true if at least one message was received.
             if (greenMail.waitForIncomingEmail(wait, 1)) {
-                var messages = greenMail.getReceivedMessages();
-                // Process all messages
-                for (var message : messages) {
+                final var messages = greenMail.getReceivedMessages();
+                for (final var message : messages) {
                     processMessage(message);
                 }
                 try {
-                    // Clear so we only see new messages next loop
                     greenMail.purgeEmailFromAllMailboxes();
                 } catch (FolderException e) {
                     log.error("Error purging mailboxes: {}", e.getMessage(), e);

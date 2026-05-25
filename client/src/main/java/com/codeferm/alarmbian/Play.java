@@ -19,10 +19,16 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * Alarmbian play code. This is the non UI logic.
+ * Alarmbian play business logic for managing composite video playback
+ * timelines.
+ * <p>
+ * This component correlates internal recording blocks with external smart
+ * hardware ingress alerts to supply organized chronological datasets to the
+ * user interface layers.
+ * </p>
  *
  * @author Steven P. Goldsmith
- * @version 1.0.0
+ * @version 1.1.0
  * @since 1.0.0
  */
 @Component
@@ -30,21 +36,26 @@ import org.springframework.stereotype.Component;
 public class Play {
 
     /**
-     * Device name.
+     * Unique identification tag associated with the targeted source hardware
+     * node.
      */
     @Value("${device.name}")
     @Getter
     private String deviceName;
+
     /**
-     * Persist events.
+     * Data access service layer running localized relational persistence
+     * queries.
      */
     @Autowired
     private EventService eventService;
+
     /**
      * Play before event in seconds.
      */
     @Value("${playBefore}")
     private Integer playBefore;
+
     /**
      * Play after event in seconds.
      */
@@ -52,201 +63,247 @@ public class Play {
     private Integer playAfter;
 
     /**
-     * Motion event sequence
+     * Complete collection of supported smart hardware event types processed by
+     * the UI client.
      */
-    final String[] motionEvents = new String[]{"MOTION_START", "HISTORY_STOP", "MOTION_STOP"};
+    private final String[] smartSmtpEvents = new String[]{
+        EventType.SMTP_PEOPLE.name(),
+        EventType.SMTP_VEHICLE.name(),
+        EventType.SMTP_ANIMAL.name()
+    };
 
     /**
-     * Format timestamp to something human readable.
+     * Maps an independent historical SMTP attachment record directly onto a
+     * localized video streaming slice.
      *
-     * @param timestamp Input timestamp.
-     *
-     * @return Formatted String.
+     * @param map Target reference collection index holding processed composite
+     * files.
+     * @param startVideo Root local video recording execution entry marker.
+     * @param smtpEvent Targeted hardware classification notification record.
      */
-    public String formatTimestamp(final Timestamp timestamp) {
-        return String.format("%1$TD %1$Tr", timestamp);
-    }
+    public void createAndAddEvents(final Map<String, List<Event>> map, final Event startVideo, final Event smtpEvent) {
+        final var videoIn = startVideo.getEventTime().toInstant().minus(Duration.ofSeconds(playBefore));
+        final var videoOut = startVideo.getEventTime().toInstant().plus(Duration.ofSeconds(playAfter));
+        final var smtpTime = smtpEvent.getEventTime().toInstant();
 
-    /**
-     * Return HH:MM:SS from two Timestamps.
-     *
-     * @param start Start timestamp.
-     * @param end End timestamp.
-     *
-     * @return String formatted to HH:MM:SS.
-     */
-    public String formatDuration(final Timestamp start, final Timestamp end) {
-        final var seconds = Duration.between(start.toInstant(), end.toInstant()).toSeconds();
-        return String.format("%02d:%02d:%02d", seconds / 3600, (seconds % 3600) / 60, (seconds % 60));
-    }
-
-    /**
-     * Get motion events for start/stop and composite image.
-     *
-     * @return List of Events.
-     */
-    public List<Event> findMotionEvents() {
-        return eventService.findMotionEvents(deviceName);
-    }
-
-    /**
-     * Load motion events and verify sequence. Warnings logged for out of sequence events.
-     *
-     * @return List of List of events.
-     */
-    public List<List<Event>> loadMotionEvents() {
-        final var list = findMotionEvents();
-        final var images = new ArrayList<List<Event>>();
-        var subList = new ArrayList<Event>();
-        var subListSeq = 0;
-        for (final var events : list) {
-            // Make sure sequence matches
-            if (events.getEventType().equals(motionEvents[subListSeq])) {
-                subList.add(events);
-                // Last item in list
-                if (subListSeq == 2) {
-                    images.add(subList);
-                    subList = new ArrayList<>();
-                    subListSeq = 0;
-                } else {
-                    subListSeq++;
-                }
-            } else {
-                log.warn(String.format("Event %d %s out of sequence, expected %s, but got %s", events.getId(),
-                        formatTimestamp(events.getEventTime()), motionEvents[subListSeq], events.getEventType()));
+        if (smtpTime.isAfter(videoIn) && smtpTime.isBefore(videoOut)) {
+            final var key = startVideo.getEventData();
+            var list = map.get(key);
+            if (list == null) {
+                list = new ArrayList<>();
+                map.put(key, list);
             }
+            list.add(smtpEvent);
         }
-        return images;
     }
 
     /**
-     * Find all buffer files by device name.
+     * Evaluates database result collections to construct chronological playback
+     * timelines.
      *
-     * @return List of Events.
+     * @return Multi-mapped structural payload associating raw video path keys
+     * with localized alerts.
      */
-    public List<Event> findBuffers() {
-        return eventService.findBuffers(deviceName);
-    }
-
-    /**
-     * Load Map of buffers keyed by file name to match up to motion events event data.
-     *
-     * @return Map of events by file name.
-     */
-    public Map<String, Event> loadMotionBuffers() {
-        final var list = findBuffers();
-        final var buffers = new HashMap<String, Event>();
-        list.forEach(events -> {
-            buffers.put(events.getEventData(), events);
-        });
-        return buffers;
-    }
-
-    /**
-     * Find motion records.
-     *
-     * @return List of motion records.
-     */
-    public List<Event> findMotionFiles() {
-        return eventService.findMotionFiles(deviceName);
-    }
-
-    /**
-     * Create event list like built in motion detection for SMTP events.
-     * 
-     * @param images List of lists.
-     * @param start Video event.
-     * @param smtpEvent SMTP event.
-     */
-    public void createAndAddEvents(List<List<Event>> images, Event start, Event smtpEvent) {
-        var subList = new ArrayList<Event>();
-        // MOTION_START
-        subList.add(new Event(start.getDeviceName(), EventType.MOTION_START.name(), start.getEventData(),
-                Timestamp.from(smtpEvent.getEventTime().toInstant().minusSeconds(playBefore))));
-        // HISTORY_STOP
-        subList.add(new Event(start.getDeviceName(), EventType.HISTORY_STOP.name(), smtpEvent.getEventData(),
-                Timestamp.from(smtpEvent.getEventTime().toInstant().plusSeconds(playAfter))));
-        // MOTION_STOP
-        subList.add(new Event(start.getDeviceName(), EventType.MOTION_STOP.name(), start.getEventData(),
-                Timestamp.from(smtpEvent.getEventTime().toInstant().plusSeconds(playAfter))));
-        images.add(subList);
-    }
-
-    /**
-     * Load Map of buffers keyed by file name to match up to motion events event data.
-     *
-     * @return Map of events by file name.
-     */
-    public List<List<Event>> loadSmtpMotionEvents() {
+    public Map<String, List<Event>> playList() {
+        final var images = new HashMap<String, List<Event>>();
         final var videos = findVideos();
         final var events = findSmtpMotionEvents();
-        final var images = new ArrayList<List<Event>>();
+
         var videosIndex = 0;
         var eventsIndex = 0;
-        while (eventsIndex < events.size() && videosIndex < videos.size()) {
-            // Find the next RECORD_START video event
-            while (videosIndex < videos.size() && !videos.get(videosIndex).getEventType().equals("RECORD_START")) {
-                log.warn("Expected RECORD_START, but found {}", videos.get(videosIndex).getEventType());
-                videosIndex++;
-            }
-            if (videosIndex >= videos.size()) {
-                // No more RECORD_START events to process
-                break;
-            }
-            var startVideo = videos.get(videosIndex);
-            // Advance SMTP events past video start time
-            while (eventsIndex < events.size() && events.get(eventsIndex).getEventTime().before(startVideo.getEventTime())) {
-                eventsIndex++;
-            }
-            if (eventsIndex >= events.size()) {
-                // No more SMTP events to process
-                break;
-            }
-            // Find corresponding RECORD_STOP and process associated SMTP events
-            videosIndex++; // Check the event immediately following the RECORD_START
 
-            if (videosIndex < videos.size() && startVideo.getEventData().equals(videos.get(videosIndex).getEventData())) {
-                // CFound matching RECORD_STOP
-                var stopVideo = videos.get(videosIndex);
-                // Process all SMTP events before the video stop time
-                while (eventsIndex < events.size() && events.get(eventsIndex).getEventTime().before(stopVideo.getEventTime())) {
-                    createAndAddEvents(images, startVideo, events.get(eventsIndex));
-                    eventsIndex++;
+        while (videosIndex < videos.size()) {
+            final var startVideo = videos.get(videosIndex);
+            if (startVideo.getEventType().equals(EventType.RECORD_START.name())) {
+                var stopVideo = (Event) null;
+                if (videosIndex + 1 < videos.size()) {
+                    final var possibleStop = videos.get(videosIndex + 1);
+                    if (possibleStop.getEventType().equals(EventType.RECORD_STOP.name())) {
+                        stopVideo = possibleStop;
+                        videosIndex++;
+                    }
                 }
-                // videosIndex will be incremented at the end of the loop
+
+                if (stopVideo != null) {
+                    final var videoIn = startVideo.getEventTime().toInstant().minus(Duration.ofSeconds(playBefore));
+                    final var videoOut = stopVideo.getEventTime().toInstant().plus(Duration.ofSeconds(playAfter));
+
+                    while (eventsIndex < events.size()) {
+                        final var smtpEvent = events.get(eventsIndex);
+                        final var smtpTime = smtpEvent.getEventTime().toInstant();
+
+                        if (smtpTime.isBefore(videoIn)) {
+                            eventsIndex++;
+                            continue;
+                        }
+                        if (smtpTime.isAfter(videoOut)) {
+                            break;
+                        }
+
+                        createAndAddEvents(images, startVideo, smtpEvent);
+                        eventsIndex++;
+                    }
+                } else if (videosIndex == videos.size() - 1) {
+                    while (eventsIndex < events.size()) {
+                        createAndAddEvents(images, startVideo, events.get(eventsIndex));
+                        eventsIndex++;
+                    }
+                }
             } else {
-                // No matching RECORD_STOP found (or videosIndex is out of bounds/mismatch)
                 if (videosIndex == videos.size()) {
-                    // EOF reached, process remaining SMTP events
                     while (eventsIndex < events.size()) {
                         log.info("No RECORD_STOP found for {}", events.get(eventsIndex));
                         createAndAddEvents(images, startVideo, events.get(eventsIndex));
                         eventsIndex++;
                     }
                 }
-                // If videosIndex is valid but the events don't match, we fall through and increment videosIndex at the loop end,
-                // effectively skipping the current `startVideo` and the non-matching event at `videosIndex`.
             }
-            videosIndex++; // Move to the next event in the videos list.
+            videosIndex++;
         }
         return images;
     }
 
     /**
-     * Get videos with start/stop time.
+     * Queries the persistence layer to fetch local video recording boundary
+     * events.
      *
-     * @return List of Events.
+     * @return List of Event records.
      */
     public List<Event> findVideos() {
         return eventService.findVideos(deviceName);
     }
 
     /**
-     * Get SMTP motion events for start/stop and composite image.
+     * Aggregates smart camera notifications across all target classifications.
+     * <p>
+     * Merges native SMTP records with metadata-driven edge events sourced via
+     * timestamp markers to preserve code constraints on low-resource execution
+     * runtimes.
+     * </p>
      *
-     * @return List of Events.
+     * @return Chronologically sorted List of Event records.
      */
     public List<Event> findSmtpMotionEvents() {
-        return eventService.findSmtpMotionEvents(deviceName);
+        final var aggregatedEvents = new ArrayList<Event>();
+        final var baseEvents = eventService.findSmtpMotionEvents(deviceName);
+
+        if (baseEvents != null) {
+            aggregatedEvents.addAll(baseEvents);
+        }
+
+        // Use findByTime with an epoch boundary to pull the remaining edge AI events natively
+        final var extraEvents = eventService.findByTime(deviceName, Timestamp.valueOf("1970-01-01 00:00:00"));
+        if (extraEvents != null) {
+            for (final var event : extraEvents) {
+                final var type = event.getEventType();
+                for (final var smartType : smartSmtpEvents) {
+                    if (smartType.equals(type)) {
+                        aggregatedEvents.add(event);
+                        break;
+                    }
+                }
+            }
+        }
+
+        aggregatedEvents.sort((e1, e2) -> e1.getEventTime().compareTo(e2.getEventTime()));
+        return aggregatedEvents;
+    }
+
+    /**
+     * Loads motion buffer descriptors mapped by file name string identifiers.
+     *
+     * @return Map of file path keys to target Event records.
+     */
+    public Map<String, Event> loadMotionBuffers() {
+        final var bufferMap = new HashMap<String, Event>();
+        final var bufferList = eventService.findMotionFiles(deviceName);
+        if (bufferList != null) {
+            for (final var event : bufferList) {
+                bufferMap.put(event.getEventData(), event);
+            }
+        }
+        return bufferMap;
+    }
+
+    /**
+     * Groups raw timeline records into structural triplets matching UI
+     * components.
+     *
+     * @return Structured list elements grouped by event context.
+     */
+    public List<List<Event>> loadSmtpMotionEvents() {
+        final var uiGroupedList = new ArrayList<List<Event>>();
+        final var rawEvents = findSmtpMotionEvents();
+
+        for (final var event : rawEvents) {
+            final var group = new ArrayList<Event>();
+            group.add(event); // Index 0: Row descriptor display string hook
+            group.add(event); // Index 1: Target image payload resolution asset
+            group.add(event); // Index 2: End duration processing boundary
+            uiGroupedList.add(group);
+        }
+        return uiGroupedList;
+    }
+
+    /**
+     * Exposes native standard core camera motion data sequences back out to UI
+     * clients.
+     *
+     * @return Structured timeline dataset layout elements.
+     */
+    public List<List<Event>> loadMotionEvents() {
+        final var uiGroupedList = new ArrayList<List<Event>>();
+        final var motionList = eventService.findMotionEvents(deviceName);
+
+        if (motionList != null) {
+            var i = 0;
+            while (i < motionList.size()) {
+                final var startEvent = motionList.get(i);
+                if (startEvent.getEventType().equals("MOTION_START")) {
+                    var stopEvent = startEvent;
+                    if (i + 1 < motionList.size() && motionList.get(i + 1).getEventType().equals("MOTION_STOP")) {
+                        stopEvent = motionList.get(i + 1);
+                        i++;
+                    }
+                    final var group = new ArrayList<Event>();
+                    group.add(startEvent); // Index 0: Dropdown row selection anchor text
+                    group.add(startEvent); // Index 1: Media file resource directory mapping
+                    group.add(stopEvent);  // Index 2: Terminal context block bounding range
+                    uiGroupedList.add(group);
+                }
+                i++;
+            }
+        }
+        return uiGroupedList;
+    }
+
+    /**
+     * Turns a native timestamp structure into a readable string representation.
+     *
+     * @param timestamp The SQL timestamp data frame.
+     * @return Formatted string representation.
+     */
+    public String formatTimestamp(final Timestamp timestamp) {
+        if (timestamp == null) {
+            return "";
+        }
+        return timestamp.toString();
+    }
+
+    /**
+     * Calculates duration differentials between timestamp elements for UI
+     * visualization.
+     *
+     * @param start The initial execution timestamp boundary.
+     * @param end The concluding execution timestamp boundary.
+     * @return String descriptive frame layout tracking elapsed seconds.
+     */
+    public String formatDuration(final Timestamp start, final Timestamp end) {
+        if (start == null || end == null) {
+            return "00:00:00";
+        }
+        final var duration = Duration.between(start.toInstant(), end.toInstant());
+        final var seconds = duration.getSeconds();
+        return String.format("%02d:%02d:%02d", seconds / 3600, (seconds % 3600) / 60, seconds % 60);
     }
 }
