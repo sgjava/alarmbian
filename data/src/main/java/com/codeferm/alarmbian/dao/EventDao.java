@@ -79,7 +79,7 @@ public interface EventDao extends ListCrudRepository<Event, Long> {
      * @return List of Event entities.
      */
     @Query(value
-            = "select ID, DEVICE_NAME, EVENT_TYPE, EVENT_DATA, EVENT_TIME from EVENT where DEVICE_NAME = :deviceName and EVENT_TYPE = 'SMTP_MOTION' order by ID")
+            = "select ID, DEVICE_NAME, EVENT_TYPE, EVENT_DATA, EVENT_TIME from EVENT where DEVICE_NAME = :deviceName and EVENT_TYPE LIKE 'SMTP_%' order by ID")
     List<Event> findSmtpMotionEvents(final String deviceName);
         
     /**

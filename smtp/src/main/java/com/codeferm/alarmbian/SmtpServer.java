@@ -62,6 +62,12 @@ public class SmtpServer {
      */
     @Value("${smtp.port}")
     private Integer port;
+    
+    /**
+     * Active network port for incoming mail listening.
+     */
+    @Value("${smtp.start.timeout}")
+    private Long startTimeout;    
 
     /**
      * Thread sleep threshold in milliseconds when awaiting message sweeps.
@@ -176,6 +182,12 @@ public class SmtpServer {
 
     /**
      * Starts and provisions the localized SMTP listener framework context.
+     * <p>
+     * Applies an extended startup timeout parameter to the low-level server
+     * setup configuration context to allow successful socket bindings on
+     * slower, high-latency, or deeply resource-constrained underlying embedded
+     * runtime infrastructures.
+     * </p>
      */
     @PostConstruct
     public void start() {
@@ -191,6 +203,7 @@ public class SmtpServer {
         dirFormatter = DateTimeFormatter.ofPattern(dirPattern).withZone(ZoneId.systemDefault());
         fileFormatter = DateTimeFormatter.ofPattern(filePattern).withZone(ZoneId.systemDefault());
         final var setup = new ServerSetup(port, bind, ServerSetup.PROTOCOL_SMTP);
+        setup.setServerStartupTimeout(startTimeout);
         greenMail = new GreenMail(setup);
         try {
             greenMail.getManagers().getUserManager().createUser(email, user, password);
@@ -284,7 +297,8 @@ public class SmtpServer {
                 final var token = parts[0].trim().toLowerCase();
                 final var enumName = parts[1].trim();
 
-                if (lowercaseInput.contains(token)) {
+                // Use word boundary check to prevent false positives (e.g., "vehicle" matching "no-vehicle")
+                if (lowercaseInput.matches(".*\\b" + Pattern.quote(token) + "\\b.*")) {
                     try {
                         return EventType.valueOf(enumName);
                     } catch (IllegalArgumentException e) {

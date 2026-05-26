@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +40,7 @@ import org.springframework.stereotype.Component;
 import picocli.CommandLine.Command;
 
 /**
- * Alarmbian player UI.
+ * Alarmbian player UI based on UI Booster.
  *
  * @author Steven P. Goldsmith
  * @version 1.0.0
@@ -137,11 +136,11 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
      * Set font globally.
      */
     public PlayUI() {
-        final var exampleFontSettings = new FontUIResource(new Font("MS Mincho", Font.PLAIN, 20));
-        final var keys = UIManager.getDefaults().keys();
+        final FontUIResource exampleFontSettings = new FontUIResource(new Font("MS Mincho", Font.PLAIN, 20));
+        java.util.Enumeration<Object> keys = UIManager.getDefaults().keys();
         while (keys.hasMoreElements()) {
-            final var key = keys.nextElement();
-            final var value = UIManager.get(key);
+            Object key = keys.nextElement();
+            Object value = UIManager.get(key);
             if (value instanceof javax.swing.plaf.FontUIResource) {
                 UIManager.put(key, exampleFontSettings);
             }
@@ -166,50 +165,36 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         elements = new ArrayList<>();
         timestamps = new HashMap<>();
         var i = 0;
+        // Build Map of timestamps to image index.
         for (final var image : images) {
-            final var type = image.get(0).getEventType();
-            final var time = play.formatTimestamp(image.get(0).getEventTime());
-            final var display = String.format("%s - %s", time, type);
-            elements.add(display);
-            timestamps.put(display, i++);
+            timestamps.put(play.formatTimestamp(image.get(0).getEventTime()), i++);
         }
-        Collections.reverse(elements);
+        // Build list of timestamps
+        for (i = images.size(); i-- > 0;) {
+            elements.add(play.formatTimestamp(images.get(i).get(0).getEventTime()));
+        }
         index = images.size() - 1;
-    }
-
-    /**
-     * Map index to file path.
-     *
-     * @param idx Index.
-     * @return Path.
-     */
-    private String getPathForIndex(final int idx) {
-        final var eventList = images.get(idx);
-        final var target = smtpImages ? 0 : 1;
-        return eventList.get(target).getEventData().replace(remoteFromPath, remoteToPath);
     }
 
     /**
      * Blocking call until OK button pressed.
      *
-     * @return Execution confirmation.
-     * @throws Exception Possible exception.
+     * @return @throws Exception Possible exception.
      */
-    @Override
     public Integer call() throws Exception {
         final var dialog = booster.showWaitingDialog("Operation", play.getDeviceName());
         dialog.addToLargeMessage("Refresh data");
         refresh();
+        index = images.size() - 1;
         dialog.close();
-
-        final var initialPath = (index >= 0) ? getPathForIndex(index) : "";
         booster.createForm(play.getDeviceName()).
-                addCustomElement(new IconFormElement(getImageIcon(null, initialPath))).
+                addCustomElement(new IconFormElement(getImageIcon(null, images.get(index).get(1).getEventData().replace(
+                        remoteFromPath, remoteToPath)))).
                 setID("image").
                 startRow().
                 addSelection("Events", elements).setID("events").
-                addText("Duration", (index >= 0 && !smtpImages) ? play.formatDuration(images.get(index).get(0).getEventTime(),
-                        images.get(index).get(2).getEventTime()) : "N/A", true).setID("duration").
+                addText("Duration", play.formatDuration(images.get(index).get(0).getEventTime(), images.get(index).get(2).
+                        getEventTime()), true).setID("duration").
                 addText("Before", String.valueOf(playBefore)).setID("before").
                 addText("After", String.valueOf(playAfter)).setID("after").
                 addSelection("Event Type", "Motion", "SMTP").setID("eventType").
@@ -224,6 +209,7 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 endRow().
                 andWindow().setSize(xMax + 40, yMax + 310).save().
                 setChangeListener(this).show();
+        // Clean up
         matToBufImg.done();
         return 0;
     }
@@ -231,95 +217,144 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     /**
      * Return image icon from image file.
      *
-     * @param form Form.
-     * @param fileName File name.
+     * @param form Form to update.
+     * @param fileName Image file name.
      * @return Image icon.
      */
     public ImageIcon getImageIcon(final Form form, final String fileName) {
         ImageIcon imageIcon = null;
-        if (fileName != null && fileName.endsWith(".jpg") && new File(fileName).exists()) {
-            source = Imgcodecs.imread(fileName);
-            if (!source.empty()) {
-                if (source.cols() > xMax) {
-                    Imgproc.resize(source, dest, new Size(xMax, yMax), 0, 0, Imgproc.INTER_LINEAR);
-                    imageIcon = new ImageIcon(matToBufImg.execute(dest));
-                } else {
-                    imageIcon = new ImageIcon(matToBufImg.execute(source));
-                }
-            }
+        // Get preview image
+        source = Imgcodecs.imread(fileName);
+        var type = BufferedImage.TYPE_BYTE_GRAY;
+        if (source.channels() > 1) {
+            // If it's a color image (3 channels), assume BGR and use TYPE_3BYTE_BGR
+            type = BufferedImage.TYPE_3BYTE_BGR;
+        }
+        // Resize if needed
+        if (source.cols() > xMax) {
+            Imgproc.resize(source, dest, new Size(xMax, yMax), 0, 0, Imgproc.INTER_LINEAR);
+            source.release();
+            imageIcon = new ImageIcon(matToBufImg.execute(dest));
+            dest.release();
+        } else {
+            imageIcon = new ImageIcon(matToBufImg.execute(source));
             source.release();
         }
-        return (imageIcon != null) ? imageIcon : new ImageIcon(new BufferedImage(xMax, yMax, BufferedImage.TYPE_INT_RGB));
+        return imageIcon;
     }
 
     /**
-     * Save video clip.
+     * Update form elements.
      *
-     * @param fileName File name.
-     * @param start Start.
-     * @param duration Duration.
+     * @param form Form to update.
+     */
+    public void update(final Form form) {
+        var duration = (TextFormElement) form.getById("duration");
+        duration.setValue(play.formatDuration(images.get(index).get(0).getEventTime(), images.get(index).get(2).getEventTime()));
+    }
+
+    /**
+     * Use ffmpeg to save file clip.
+     * 
+     * @param fileName Video buffer file.
+     * @param start Start offset.
+     * @param duration Duration in seconds.
      * @param outputFileName Output file name.
      */
     public void saveFile(final String fileName, final long start, final long duration, final String outputFileName) {
-        final var command = List.of("ffmpeg", "-ss", String.valueOf(start), "-i", fileName, "-t", String.valueOf(duration), "-c", "copy", outputFileName);
+        final var command = new ArrayList<String>();
+        command.add("ffmpeg");
+        command.add("-ss");
+        command.add(String.valueOf(start));
+        command.add("-i");
+        command.add(fileName);
+        command.add("-t");
+        command.add(String.valueOf(duration));
+        command.add("-c");
+        command.add("copy");
+        command.add(outputFileName);
         final var pb = new ProcessBuilder(command);
         pb.redirectErrorStream(true);
         try {
             final var pc = pb.start();
-            try (final var is = pc.getInputStream(); final var reader = new BufferedReader(new InputStreamReader(is))) {
-                while (reader.readLine() != null) {
+            try (final var inputStatus = pc.getInputStream(); final var readStatus = new BufferedReader(new InputStreamReader(inputStatus))) {
+                while (readStatus.readLine() != null) {
+                    // Consume FFmpeg output/status (optional)
                 }
             }
-            pc.waitFor();
-            pc.destroy();
-        } catch (IOException | InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("FFmpeg failed", e);
+            try {
+                pc.waitFor();
+                pc.destroy();
+                log.debug("File saved successfully to {}", outputFileName);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // Best practice for interrupted exception
+                throw new RuntimeException("Process interrupted", e);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to execute FFmpeg command", e);
         }
     }
 
     /**
-     * Play video clip.
+     * Use ffplay to play motion from buffer using start and duration.
      *
-     * @param fileName File name.
-     * @param start Start.
-     * @param duration Duration.
+     * @param fileName Video buffer file.
+     * @param start Start offset.
+     * @param duration Duration in seconds.
      */
     public void playFile(final String fileName, final long start, final long duration) {
-        final var command = List.of("ffplay", "-autoexit", "-fflags", "nobuffer", "-analyzeduration", "0", "-probesize", "32", fileName, "-ss", String.valueOf(start), "-t", String.valueOf(duration));
+        final var command = new ArrayList<String>();
+        command.add("ffplay");
+        command.add("-autoexit");
+        command.add("-fflags");
+        command.add("nobuffer");
+        command.add("-analyzeduration");
+        command.add("0");
+        command.add("-probesize");
+        command.add("32");
+        command.add(fileName);
+        command.add("-ss");
+        command.add(String.valueOf(start));
+        command.add("-t");
+        command.add(String.valueOf(duration));
         final var pb = new ProcessBuilder(command);
         pb.redirectErrorStream(true);
         try {
             final var pc = pb.start();
-            try (final var is = pc.getInputStream(); final var reader = new BufferedReader(new InputStreamReader(is))) {
-                while (reader.readLine() != null) {
+            try (final var inputStatus = pc.getInputStream(); final var readStatus = new BufferedReader(new InputStreamReader(inputStatus))) {
+                while (readStatus.readLine() != null) {
                 }
             }
-            pc.waitFor();
-            pc.destroy();
-        } catch (IOException | InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("FFplay failed", e);
+            try {
+                pc.waitFor();
+                pc.destroy();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
     /**
-     * Check if string is integer.
+     * Poor man's Integer validator.
      *
-     * @param str String.
-     * @return True if integer.
+     * @param str String value.
+     * @return true if integer.
      */
-    public boolean isInteger(final String str) {
+    public boolean isInteger(String str) {
+        // This handles negative signs, leading/trailing spaces, and format
         try {
             Integer.valueOf(str);
             return true;
         } catch (NumberFormatException e) {
+            // If parsing fails, it's not a valid integer
             return false;
         }
     }
 
     /**
-     * On change listener.
+     * onChange listener for form elements.
      *
      * @param fe Form element.
      * @param o Object.
@@ -330,53 +365,75 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         final var label = (JLabel) form.getById("image").getValue();
         switch (fe.getId()) {
             case "play" -> {
-                if (index >= 0 && !smtpImages) {
-                    final var eventList = images.get(index);
-                    final var start = Duration.between(buffers.get(eventList.get(0).getEventData()).getEventTime().toInstant(), eventList.get(0).getEventTime().toInstant()).minusSeconds(playBefore);
-                    final var duration = Duration.between(eventList.get(0).getEventTime().toInstant(), eventList.get(2).getEventTime().toInstant()).plusSeconds(playAfter);
-                    playFile(eventList.get(1).getEventData().replace(remoteFromPath, remoteToPath).replace("jpg", "mkv"), start.getSeconds(), duration.getSeconds());
-                }
+                final var bufferStart = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
+                final var motionStart = images.get(index).get(0).getEventTime().toInstant();
+                final var motionStop = images.get(index).get(2).getEventTime().toInstant();
+                final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
+                final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
+                final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
+                playFile(fileName, start.getSeconds(), duration.getSeconds());
             }
             case "save" -> {
-                if (index >= 0 && !smtpImages) {
-                    final var eventList = images.get(index);
-                    final var start = Duration.between(buffers.get(eventList.get(0).getEventData()).getEventTime().toInstant(), eventList.get(0).getEventTime().toInstant()).minusSeconds(playBefore);
-                    final var duration = Duration.between(eventList.get(0).getEventTime().toInstant(), eventList.get(2).getEventTime().toInstant()).plusSeconds(playAfter);
-                    saveFile(eventList.get(1).getEventData().replace(remoteFromPath, remoteToPath).replace("jpg", "mkv"), start.getSeconds(), duration.getSeconds(), localPath + File.separator + new File(eventList.get(1).getEventData().replace("jpg", "mkv")).getName());
-                }
+                final var bufferStart = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
+                final var motionStart = images.get(index).get(0).getEventTime().toInstant();
+                final var motionStop = images.get(index).get(2).getEventTime().toInstant();
+                final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
+                final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
+                final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
+                var file = new File(images.get(index).get(1).getEventData().replace("jpg", "mkv"));
+                var saveFileName = file.getName();
+                saveFile(fileName, start.getSeconds(), duration.getSeconds(), String.format("%s%s%s", localPath,
+                        File.separator, saveFileName));
             }
             case "events" -> {
-                final var value = (String) form.getById("events").getValue();
+                var value = (String) form.getById("events").getValue();
+                // This will happen when Refresh pressed bacause selection list is updated
                 if (!StringUtils.isEmpty(value)) {
                     index = timestamps.get(value);
-                    label.setIcon(getImageIcon(form, getPathForIndex(index)));
+                    label.setIcon(getImageIcon(form, images.get(index).get(1).getEventData().replace(remoteFromPath, remoteToPath)));
                 }
             }
             case "eventType" -> {
-                smtpImages = "SMTP".equals(o);
-                refresh();
-                ((SelectionFormElement) form.getById("events")).setPossibilities(elements);
-                if (index >= 0) {
-                    label.setIcon(getImageIcon(form, getPathForIndex(index)));
+                var selectedType = (String) o;
+                if ("SMTP".equals(selectedType)) {
+                    smtpImages = true;
+                } else {
+                    smtpImages = false;
                 }
+                refresh();
+                var selection = form.getById("events").toSelection();
+                selection.setPossibilities(elements);
             }
             case "refresh" -> {
                 refresh();
-                ((SelectionFormElement) form.getById("events")).setPossibilities(elements);
+                SelectionFormElement selection = form.getById("events").toSelection();
+                selection.setPossibilities(elements);
+            }
+            case "duration" -> {
             }
             case "before" -> {
-                if (isInteger(form.getById("before").asString())) {
-                    playBefore = Integer.valueOf(form.getById("before").asString());
+                var before = form.getById("before").asString();
+                if (before != null && !before.isEmpty()) {
+                    if (isInteger(before)) {
+                        playBefore = Integer.valueOf(before);
+                    } else {
+                        new UiBooster().showErrorDialog("Only integer values allowed.", "ERROR");
+                    }
                 }
             }
             case "after" -> {
-                if (isInteger(form.getById("after").asString())) {
-                    playAfter = Integer.valueOf(form.getById("after").asString());
+                var after = form.getById("after").asString();
+                if (after != null && !after.isEmpty()) {
+                    if (isInteger(after)) {
+                        playAfter = Integer.valueOf(after);
+                    } else {
+                        new UiBooster().showErrorDialog("Only integer values allowed.", "ERROR");
+                    }
                 }
             }
+            default ->
+                booster.showErrorDialog(String.format("%s onChange not handled", fe.getId()), "Error");
         }
-        if (index >= 0 && !smtpImages) {
-            ((TextFormElement) form.getById("duration")).setValue(play.formatDuration(images.get(index).get(0).getEventTime(), images.get(index).get(2).getEventTime()));
-        }
+        update(form);
     }
 }
