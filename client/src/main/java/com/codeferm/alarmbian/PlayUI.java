@@ -41,9 +41,8 @@ import org.springframework.stereotype.Component;
 import picocli.CommandLine.Command;
 
 /**
- * Alarmbian player UI based on UI Booster. Fixed image selection render logic
- * to prevent video files from passing into OpenCV imread, resolving black icon
- * state.
+ * Alarmbian player UI based on UI Booster. Corrected image lookup resolution to
+ * completely isolate static snapshot frames from video container formats.
  *
  * @author Steven P. Goldsmith
  * @version 1.0.0
@@ -157,8 +156,8 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
 
     /**
      * Resolves the target snapshot image path string depending on selection
-     * type. Explicitly isolates the snapshot JPG path from motion sequences to
-     * protect rendering layer.
+     * type. Strictly isolates the static .jpg asset and filters out video
+     * containers.
      *
      * @param eventGroup List containing matching transaction entries.
      * @return File path destination string, or empty if unresolved.
@@ -176,28 +175,20 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 targetData = targetEvent.getEventData();
             }
         } else {
-            // Scan group list directly for the explicit image payload file path rather than assuming indices
+            // Explicitly search the event group for the static snapshot row (.jpg)
             for (final var event : eventGroup) {
-                if (event != null && event.getEventData() != null && event.getEventData().toLowerCase().endsWith(".jpg")) {
-                    targetData = event.getEventData();
-                    break;
-                }
-            }
-            // Fallback lookup if no explicit extension found
-            if (targetData.isEmpty()) {
-                final var fallbackEvent = (eventGroup.size() > 1) ? eventGroup.get(1) : eventGroup.get(0);
-                if (fallbackEvent != null) {
-                    targetData = fallbackEvent.getEventData();
+                if (event != null && event.getEventData() != null) {
+                    final var pathLower = event.getEventData().toLowerCase();
+                    if (pathLower.endsWith(".jpg") || pathLower.endsWith(".jpeg")) {
+                        targetData = event.getEventData();
+                        break;
+                    }
                 }
             }
         }
 
         if (targetData != null && !targetData.isEmpty()) {
-            final var translatedPath = targetData.replace(remoteFromPath, remoteToPath);
-            if (new File(translatedPath).exists()) {
-                return translatedPath;
-            }
-            return translatedPath;
+            return targetData.replace(remoteFromPath, remoteToPath);
         }
         return "";
     }
