@@ -41,8 +41,8 @@ import org.springframework.stereotype.Component;
 import picocli.CommandLine.Command;
 
 /**
- * Alarmbian player UI based on UI Booster. Corrected image lookup resolution to
- * completely isolate static snapshot frames from video container formats.
+ * Alarmbian player UI based on UI Booster. Fixed image path resolution using
+ * the original collection index offset layout.
  *
  * @author Steven P. Goldsmith
  * @version 1.0.0
@@ -155,9 +155,9 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     }
 
     /**
-     * Resolves the target snapshot image path string depending on selection
-     * type. Strictly isolates the static .jpg asset and filters out video
-     * containers.
+     * Resolves the target image path string depending on selection type using
+     * original index logic. Motion lists target index 1 for snapshot paths;
+     * SMTP lists target index 0.
      *
      * @param eventGroup List containing matching transaction entries.
      * @return File path destination string, or empty if unresolved.
@@ -167,28 +167,15 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
             return "";
         }
 
-        var targetData = "";
-
+        final Event targetEvent;
         if (smtpImages) {
-            final var targetEvent = eventGroup.get(0);
-            if (targetEvent != null) {
-                targetData = targetEvent.getEventData();
-            }
+            targetEvent = eventGroup.get(0);
         } else {
-            // Explicitly search the event group for the static snapshot row (.jpg)
-            for (final var event : eventGroup) {
-                if (event != null && event.getEventData() != null) {
-                    final var pathLower = event.getEventData().toLowerCase();
-                    if (pathLower.endsWith(".jpg") || pathLower.endsWith(".jpeg")) {
-                        targetData = event.getEventData();
-                        break;
-                    }
-                }
-            }
+            targetEvent = (eventGroup.size() > 1) ? eventGroup.get(1) : eventGroup.get(0);
         }
 
-        if (targetData != null && !targetData.isEmpty()) {
-            return targetData.replace(remoteFromPath, remoteToPath);
+        if (targetEvent != null && targetEvent.getEventData() != null) {
+            return targetEvent.getEventData().replace(remoteFromPath, remoteToPath);
         }
         return "";
     }
