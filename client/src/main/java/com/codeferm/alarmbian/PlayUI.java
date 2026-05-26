@@ -225,17 +225,15 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     public ImageIcon getImageIcon(final Form form, final String fileName) {
         ImageIcon imageIcon = null;
         source = Imgcodecs.imread(fileName);
-        var type = BufferedImage.TYPE_BYTE_GRAY;
-        if (source.channels() > 1) {
-            type = BufferedImage.TYPE_3BYTE_BGR;
-        }
-        if (source.cols() > xMax) {
-            Imgproc.resize(source, dest, new Size(xMax, yMax), 0, 0, Imgproc.INTER_LINEAR);
-            source.release();
-            imageIcon = new ImageIcon(matToBufImg.execute(dest));
-        } else {
-            imageIcon = new ImageIcon(matToBufImg.execute(source));
-            source.release();
+        if (!source.empty()) {
+            if (source.cols() > xMax) {
+                Imgproc.resize(source, dest, new Size(xMax, yMax), 0, 0, Imgproc.INTER_LINEAR);
+                source.release();
+                imageIcon = new ImageIcon(matToBufImg.execute(dest));
+            } else {
+                imageIcon = new ImageIcon(matToBufImg.execute(source));
+                source.release();
+            }
         }
         return imageIcon;
     }
@@ -374,52 +372,39 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
                 final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
                 final var fileName = images.get(index).get(1).getEventData().replace(remoteFromPath, remoteToPath).replace("jpg", "mkv");
-                var file = new File(images.get(index).get(1).getEventData().replace("jpg", "mkv"));
-                var saveFileName = file.getName();
+                final var file = new File(images.get(index).get(1).getEventData().replace("jpg", "mkv"));
+                final var saveFileName = file.getName();
                 saveFile(fileName, start.getSeconds(), duration.getSeconds(), String.format("%s%s%s", localPath,
                         File.separator, saveFileName));
             }
             case "events" -> {
-                var value = (String) form.getById("events").getValue();
+                final var value = (String) form.getById("events").getValue();
                 if (!StringUtils.isEmpty(value)) {
                     index = timestamps.get(value);
                     label.setIcon(getImageIcon(form, images.get(index).get(1).getEventData().replace(remoteFromPath, remoteToPath)));
                 }
             }
             case "eventType" -> {
-                var selectedType = (String) o;
-                smtpImages = "SMTP".equals(selectedType);
+                smtpImages = "SMTP".equals(o);
                 refresh();
-                var selection = form.getById("events").toSelection();
-                selection.setPossibilities(elements);
+                ((SelectionFormElement) form.getById("events")).setPossibilities(elements);
             }
             case "refresh" -> {
                 refresh();
-                SelectionFormElement selection = form.getById("events").toSelection();
-                selection.setPossibilities(elements);
+                ((SelectionFormElement) form.getById("events")).setPossibilities(elements);
             }
             case "before" -> {
-                var before = form.getById("before").asString();
-                if (before != null && !before.isEmpty()) {
-                    if (isInteger(before)) {
-                        playBefore = Integer.valueOf(before);
-                    } else {
-                        new UiBooster().showErrorDialog("Only integer values allowed.", "ERROR");
-                    }
+                final var before = form.getById("before").asString();
+                if (isInteger(before)) {
+                    playBefore = Integer.valueOf(before);
                 }
             }
             case "after" -> {
-                var after = form.getById("after").asString();
-                if (after != null && !after.isEmpty()) {
-                    if (isInteger(after)) {
-                        playAfter = Integer.valueOf(after);
-                    } else {
-                        new UiBooster().showErrorDialog("Only integer values allowed.", "ERROR");
-                    }
+                final var after = form.getById("after").asString();
+                if (isInteger(after)) {
+                    playAfter = Integer.valueOf(after);
                 }
             }
-            default ->
-                booster.showErrorDialog(String.format("%s onChange not handled", fe.getId()), "Error");
         }
         update(form);
     }
