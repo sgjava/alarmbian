@@ -36,12 +36,13 @@ import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 import picocli.CommandLine.Command;
 
 /**
- * Alarmbian player UI based on UI Booster. Fixed event list index mappings to
- * accurately restore standard motion event rendering logic.
+ * Alarmbian player UI based on UI Booster. Corrected path translation checks to
+ * ensure the initial image is correctly loaded and rendered on startup.
  *
  * @author Steven P. Goldsmith
  * @version 1.0.0
@@ -52,6 +53,11 @@ import picocli.CommandLine.Command;
 @Command(name = "playUI")
 public class PlayUI implements Callable<Integer>, FormElementChangeListener {
 
+    /**
+     * Application Context.
+     */
+    @Autowired
+    private ApplicationContext context;
     /**
      * Play logic.
      */
@@ -125,10 +131,6 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
      */
     private Mat source;
     /**
-     * Destination Mat.
-     */
-    private final Mat dest;
-    /**
      * SMTP images?
      */
     private boolean smtpImages = false;
@@ -150,14 +152,13 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         matToBufImg = new MatToBufImg();
         matToBufImg.init();
         source = null;
-        dest = new Mat();
     }
 
     /**
      * Resolves the target image path string depending on selection type. Motion
      * lists look at index 1 for the snapshot path; SMTP lists look at index 0.
+     * Verifies existence on local disk before returning path string.
      *
-     * @final
      * @param eventGroup List containing matching transaction entries.
      * @return File path destination string, or empty if unresolved.
      */
@@ -170,12 +171,20 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         if (smtpImages) {
             targetEvent = eventGroup.get(0);
         } else {
-            // Restore legacy motion mapping logic targeting index 1 snapshot
             targetEvent = (eventGroup.size() > 1) ? eventGroup.get(1) : eventGroup.get(0);
         }
 
         if (targetEvent != null && targetEvent.getEventData() != null) {
-            return targetEvent.getEventData().replace(remoteFromPath, remoteToPath);
+            final var rawPath = targetEvent.getEventData();
+            final var translatedPath = rawPath.replace(remoteFromPath, remoteToPath);
+
+            // Check if translated path exists, fallback to raw path if valid
+            if (new File(translatedPath).exists()) {
+                return translatedPath;
+            } else if (new File(rawPath).exists()) {
+                return rawPath;
+            }
+            return translatedPath; // Return translated path anyway for clear logging downstream
         }
         return "";
     }
@@ -288,6 +297,7 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         }
 
         if (source.cols() > xMax) {
+            final var dest = new Mat();
             Imgproc.resize(source, dest, new Size(xMax, yMax), 0, 0, Imgproc.INTER_LINEAR);
             source.release();
             imageIcon = new ImageIcon(matToBufImg.execute(dest));
