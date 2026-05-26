@@ -40,7 +40,9 @@ import org.springframework.stereotype.Component;
 import picocli.CommandLine.Command;
 
 /**
- * Alarmbian player UI based on UI Booster.
+ * Alarmbian player UI based on UI Booster. Resolves OpenCV matrix state
+ * pollution errors by using localized frame allocation with strict native
+ * release rules.
  *
  * @author Steven P. Goldsmith
  * @version 1.0.0
@@ -124,23 +126,19 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
      */
     private Mat source;
     /**
-     * Destination Mat.
-     */
-    private final Mat dest;
-    /**
      * SMTP images?
      */
     private boolean smtpImages = false;
 
     /**
-     * Set font globally.
+     * Set font globally and initialize native image translation frame buffers.
      */
     public PlayUI() {
-        final FontUIResource exampleFontSettings = new FontUIResource(new Font("MS Mincho", Font.PLAIN, 20));
-        java.util.Enumeration<Object> keys = UIManager.getDefaults().keys();
+        final var exampleFontSettings = new FontUIResource(new Font("MS Mincho", Font.PLAIN, 20));
+        final var keys = UIManager.getDefaults().keys();
         while (keys.hasMoreElements()) {
-            Object key = keys.nextElement();
-            Object value = UIManager.get(key);
+            final var key = keys.nextElement();
+            final var value = UIManager.get(key);
             if (value instanceof javax.swing.plaf.FontUIResource) {
                 UIManager.put(key, exampleFontSettings);
             }
@@ -149,7 +147,6 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         matToBufImg = new MatToBufImg();
         matToBufImg.init();
         source = null;
-        dest = new Mat();
     }
 
     /**
@@ -179,8 +176,10 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     /**
      * Blocking call until OK button pressed.
      *
-     * @return @throws Exception Possible exception.
+     * @return Execution confirmation tracking token.
+     * @throws Exception Possible execution loop exception.
      */
+    @Override
     public Integer call() throws Exception {
         final var dialog = booster.showWaitingDialog("Operation", play.getDeviceName());
         dialog.addToLargeMessage("Refresh data");
@@ -215,23 +214,39 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     }
 
     /**
-     * Return image icon from image file.
+     * Return image icon from image file. Localizes the destination Mat to
+     * prevent state pollution while enforcing strict manual deallocation
+     * cleanup logic.
      *
      * @param form Form to update.
      * @param fileName Image file name.
-     * @return Image icon.
+     * @return Image icon asset package.
      */
     public ImageIcon getImageIcon(final Form form, final String fileName) {
+        if (fileName == null || fileName.isEmpty() || !new File(fileName).exists()) {
+            log.warn("Image target blank or missing on local file system filesystem: {}", fileName);
+            return new ImageIcon(new BufferedImage(xMax, yMax, BufferedImage.TYPE_INT_RGB));
+        }
+
         ImageIcon imageIcon = null;
-        // Get preview image
         source = Imgcodecs.imread(fileName);
+
+        if (source.empty()) {
+            log.error("OpenCV native execution resulted in empty source matrix frame for file: {}", fileName);
+            if (source != null) {
+                source.release();
+            }
+            return new ImageIcon(new BufferedImage(xMax, yMax, BufferedImage.TYPE_INT_RGB));
+        }
+
         var type = BufferedImage.TYPE_BYTE_GRAY;
         if (source.channels() > 1) {
-            // If it's a color image (3 channels), assume BGR and use TYPE_3BYTE_BGR
             type = BufferedImage.TYPE_3BYTE_BGR;
         }
-        // Resize if needed
+
+        // Resize if needed using a local matrix block container
         if (source.cols() > xMax) {
+            final var dest = new Mat();
             Imgproc.resize(source, dest, new Size(xMax, yMax), 0, 0, Imgproc.INTER_LINEAR);
             source.release();
             imageIcon = new ImageIcon(matToBufImg.execute(dest));
@@ -249,7 +264,7 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
      * @param form Form to update.
      */
     public void update(final Form form) {
-        var duration = (TextFormElement) form.getById("duration");
+        final var duration = (TextFormElement) form.getById("duration");
         duration.setValue(play.formatDuration(images.get(index).get(0).getEventTime(), images.get(index).get(2).getEventTime()));
     }
 
@@ -279,7 +294,7 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
             final var pc = pb.start();
             try (final var inputStatus = pc.getInputStream(); final var readStatus = new BufferedReader(new InputStreamReader(inputStatus))) {
                 while (readStatus.readLine() != null) {
-                    // Consume FFmpeg output/status (optional)
+                    // Consume stream lines
                 }
             }
             try {
@@ -287,8 +302,8 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 pc.destroy();
                 log.debug("File saved successfully to {}", outputFileName);
             } catch (InterruptedException e) {
-                Thread.currentThread().interrupt(); // Best practice for interrupted exception
-                throw new RuntimeException("Process interrupted", e);
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Process interrupted during frame save execution", e);
             }
         } catch (IOException e) {
             throw new RuntimeException("Failed to execute FFmpeg command", e);
@@ -329,6 +344,7 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 pc.waitFor();
                 pc.destroy();
             } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 throw new RuntimeException(e);
             }
         } catch (IOException e) {
@@ -342,13 +358,11 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
      * @param str String value.
      * @return true if integer.
      */
-    public boolean isInteger(String str) {
-        // This handles negative signs, leading/trailing spaces, and format
+    public boolean isInteger(final String str) {
         try {
             Integer.valueOf(str);
             return true;
         } catch (NumberFormatException e) {
-            // If parsing fails, it's not a valid integer
             return false;
         }
     }
@@ -380,39 +394,34 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
                 final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
                 final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
-                var file = new File(images.get(index).get(1).getEventData().replace("jpg", "mkv"));
-                var saveFileName = file.getName();
+                final var file = new File(images.get(index).get(1).getEventData().replace("jpg", "mkv"));
+                final var saveFileName = file.getName();
                 saveFile(fileName, start.getSeconds(), duration.getSeconds(), String.format("%s%s%s", localPath,
                         File.separator, saveFileName));
             }
             case "events" -> {
-                var value = (String) form.getById("events").getValue();
-                // This will happen when Refresh pressed bacause selection list is updated
+                final var value = (String) form.getById("events").getValue();
                 if (!StringUtils.isEmpty(value)) {
                     index = timestamps.get(value);
                     label.setIcon(getImageIcon(form, images.get(index).get(1).getEventData().replace(remoteFromPath, remoteToPath)));
                 }
             }
             case "eventType" -> {
-                var selectedType = (String) o;
-                if ("SMTP".equals(selectedType)) {
-                    smtpImages = true;
-                } else {
-                    smtpImages = false;
-                }
+                final var selectedType = (String) o;
+                smtpImages = "SMTP".equals(selectedType);
                 refresh();
-                var selection = form.getById("events").toSelection();
+                final var selection = form.getById("events").toSelection();
                 selection.setPossibilities(elements);
             }
             case "refresh" -> {
                 refresh();
-                SelectionFormElement selection = form.getById("events").toSelection();
+                final var selection = (SelectionFormElement) form.getById("events").toSelection();
                 selection.setPossibilities(elements);
             }
             case "duration" -> {
             }
             case "before" -> {
-                var before = form.getById("before").asString();
+                final var before = form.getById("before").asString();
                 if (before != null && !before.isEmpty()) {
                     if (isInteger(before)) {
                         playBefore = Integer.valueOf(before);
@@ -422,7 +431,7 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 }
             }
             case "after" -> {
-                var after = form.getById("after").asString();
+                final var after = form.getById("after").asString();
                 if (after != null && !after.isEmpty()) {
                     if (isInteger(after)) {
                         playAfter = Integer.valueOf(after);
