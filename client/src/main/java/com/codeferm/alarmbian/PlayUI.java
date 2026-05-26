@@ -41,8 +41,9 @@ import org.springframework.stereotype.Component;
 import picocli.CommandLine.Command;
 
 /**
- * Alarmbian player UI based on UI Booster. Corrected path translation checks to
- * ensure the initial image is correctly loaded and rendered on startup.
+ * Alarmbian player UI based on UI Booster. Fixed image selection render logic
+ * to prevent video files from passing into OpenCV imread, resolving black icon
+ * state.
  *
  * @author Steven P. Goldsmith
  * @version 1.0.0
@@ -155,9 +156,9 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     }
 
     /**
-     * Resolves the target image path string depending on selection type. Motion
-     * lists look at index 1 for the snapshot path; SMTP lists look at index 0.
-     * Verifies existence on local disk before returning path string.
+     * Resolves the target snapshot image path string depending on selection
+     * type. Explicitly isolates the snapshot JPG path from motion sequences to
+     * protect rendering layer.
      *
      * @param eventGroup List containing matching transaction entries.
      * @return File path destination string, or empty if unresolved.
@@ -167,24 +168,36 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
             return "";
         }
 
-        final Event targetEvent;
+        var targetData = "";
+
         if (smtpImages) {
-            targetEvent = eventGroup.get(0);
+            final var targetEvent = eventGroup.get(0);
+            if (targetEvent != null) {
+                targetData = targetEvent.getEventData();
+            }
         } else {
-            targetEvent = (eventGroup.size() > 1) ? eventGroup.get(1) : eventGroup.get(0);
+            // Scan group list directly for the explicit image payload file path rather than assuming indices
+            for (final var event : eventGroup) {
+                if (event != null && event.getEventData() != null && event.getEventData().toLowerCase().endsWith(".jpg")) {
+                    targetData = event.getEventData();
+                    break;
+                }
+            }
+            // Fallback lookup if no explicit extension found
+            if (targetData.isEmpty()) {
+                final var fallbackEvent = (eventGroup.size() > 1) ? eventGroup.get(1) : eventGroup.get(0);
+                if (fallbackEvent != null) {
+                    targetData = fallbackEvent.getEventData();
+                }
+            }
         }
 
-        if (targetEvent != null && targetEvent.getEventData() != null) {
-            final var rawPath = targetEvent.getEventData();
-            final var translatedPath = rawPath.replace(remoteFromPath, remoteToPath);
-
-            // Check if translated path exists, fallback to raw path if valid
+        if (targetData != null && !targetData.isEmpty()) {
+            final var translatedPath = targetData.replace(remoteFromPath, remoteToPath);
             if (new File(translatedPath).exists()) {
                 return translatedPath;
-            } else if (new File(rawPath).exists()) {
-                return rawPath;
             }
-            return translatedPath; // Return translated path anyway for clear logging downstream
+            return translatedPath;
         }
         return "";
     }
@@ -248,7 +261,7 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 addText("Duration", initialDuration, true).setID("duration").
                 addText("Before", String.valueOf(playBefore)).setID("before").
                 addText("After", String.valueOf(playAfter)).setID("after").
-                addSelection("Event Type", "Motion", "SMTP").setID("eventType").
+                addSelection("Event Type", List.of("Motion", "SMTP")).setID("eventType").
                 endRow().
                 startRow().
                 addButton("Play", () -> {
