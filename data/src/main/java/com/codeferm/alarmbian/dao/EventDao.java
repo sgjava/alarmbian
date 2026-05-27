@@ -29,7 +29,7 @@ public interface EventDao extends ListCrudRepository<Event, Long> {
      * @return List of Event entities.
      */
     @Query(value
-            = "select ID, DEVICE_NAME, EVENT_TYPE, EVENT_DATA, EVENT_TIME from EVENT where DEVICE_NAME = :deviceName and EVENT_TYPE in ('RECORD_START', 'HISTORY_STOP', 'SMTP_MOTION') and EVENT_TIME <= :timestamp  order by ID")
+            = "select ID, DEVICE_NAME, EVENT_TYPE, EVENT_DATA, EVENT_TIME from EVENT where DEVICE_NAME = :deviceName and (EVENT_TYPE in ('RECORD_START', 'HISTORY_STOP') or EVENT_TYPE LIKE 'SMTP_%') and EVENT_TIME <= :timestamp  order by ID")
     List<Event> findByTime(final String deviceName, final Timestamp timestamp);
 
     /**
@@ -41,7 +41,7 @@ public interface EventDao extends ListCrudRepository<Event, Long> {
     @Query(value
             = "select ID, DEVICE_NAME, EVENT_TYPE, EVENT_DATA, EVENT_TIME from EVENT where DEVICE_NAME = :deviceName and EVENT_TYPE = 'RECORD_START' order by ID")
     List<Event> findBuffers(final String deviceName);
-    
+
     /**
      * Get all entities by device name and event type in ('RECORD_START', 'RECORD_STOP').
      *
@@ -50,7 +50,7 @@ public interface EventDao extends ListCrudRepository<Event, Long> {
      */
     @Query(value
             = "select ID, DEVICE_NAME, EVENT_TYPE, EVENT_DATA, EVENT_TIME from EVENT where DEVICE_NAME = :deviceName and EVENT_TYPE in ('RECORD_START', 'RECORD_STOP') order by ID")
-    List<Event> findVideos(final String deviceName);    
+    List<Event> findVideos(final String deviceName);
 
     /**
      * Get all entities by device name and event type in ('MOTION_START', 'MOTION_STOP', 'HISTORY_STOP').
@@ -61,7 +61,7 @@ public interface EventDao extends ListCrudRepository<Event, Long> {
     @Query(value
             = "select ID, DEVICE_NAME, EVENT_TYPE, EVENT_DATA, EVENT_TIME from EVENT where DEVICE_NAME = :deviceName and EVENT_TYPE in ('MOTION_START', 'MOTION_STOP', 'HISTORY_STOP') order by ID")
     List<Event> findMotionEvents(final String deviceName);
-    
+
     /**
      * Get all entities by device name and event type in ('MOTION_START', 'MOTION_STOP', 'MOTION_RESET', 'HISTORY_STOP').
      *
@@ -73,15 +73,16 @@ public interface EventDao extends ListCrudRepository<Event, Long> {
     List<Event> findMotionFiles(final String deviceName);
 
     /**
-     * Get all entities by device name and event type = 'SMTP_MOTION'.
+     * Get all entities by device name and event type matching a specific classification token or pattern wildcard.
      *
      * @param deviceName Device name.
+     * @param eventType Event type classification token or prefix pattern.
      * @return List of Event entities.
      */
     @Query(value
-            = "select ID, DEVICE_NAME, EVENT_TYPE, EVENT_DATA, EVENT_TIME from EVENT where DEVICE_NAME = :deviceName and EVENT_TYPE LIKE 'SMTP_%' order by ID")
-    List<Event> findSmtpMotionEvents(final String deviceName);
-        
+            = "select ID, DEVICE_NAME, EVENT_TYPE, EVENT_DATA, EVENT_TIME from EVENT where DEVICE_NAME = :deviceName and EVENT_TYPE LIKE :eventType order by ID")
+    List<Event> findSmtpMotionEvents(final String deviceName, final String eventType);
+
     /**
      * Delete all records by name and timestamp except 'START_UP' and 'SHUT_DOWN'.
      *

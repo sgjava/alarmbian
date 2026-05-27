@@ -121,7 +121,7 @@ public class EventService {
     public List<Event> findByTime(final String deviceName, final Timestamp timestamp) {
         return eventDao.findByTime(deviceName, timestamp);
     }
-    
+
     /**
      * Get all entities by device name and event type = 'RECORD_START'.
      *
@@ -131,7 +131,7 @@ public class EventService {
     public List<Event> findBuffers(final String deviceName) {
         return eventDao.findBuffers(deviceName);
     }
-    
+
     /**
      * Get all entities by device name and event type in ('RECORD_START', 'RECORD_STOP').
      *
@@ -140,8 +140,8 @@ public class EventService {
      */
     public List<Event> findVideos(final String deviceName) {
         return eventDao.findVideos(deviceName);
-    }    
-    
+    }
+
     /**
      * Get all entities by device name and event type in ('MOTION_START', 'MOTION_STOP', 'HISTORY_STOP').
      *
@@ -151,7 +151,7 @@ public class EventService {
     public List<Event> findMotionEvents(final String deviceName) {
         return eventDao.findMotionEvents(deviceName);
     }
-        
+
     /**
      * Get all entities by device name and event type in ('MOTION_START', 'MOTION_STOP', 'MOTION_RESET', 'HISTORY_STOP').
      *
@@ -161,16 +161,17 @@ public class EventService {
     public List<Event> findMotionFiles(final String deviceName) {
         return eventDao.findMotionFiles(deviceName);
     }
-    
+
     /**
-     * Get all entities by device name and event type = 'SMTP_MOTION'.
+     * Get all entities by device name and event type matching a specific classification token or pattern wildcard.
      *
      * @param deviceName Device name.
+     * @param eventType Event type classification token or prefix pattern.
      * @return List of Event entities.
      */
-    public List<Event> findSmtpMotionEvents(final String deviceName) {
-        return eventDao.findSmtpMotionEvents(deviceName);
-    }    
+    public List<Event> findSmtpMotionEvents(final String deviceName, final String eventType) {
+        return eventDao.findSmtpMotionEvents(deviceName, eventType);
+    }
 
     /**
      * Delete events by device name and timestamp.

@@ -19,8 +19,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * Alarmbian playback management logic. Handles chronological timeline
- * collation, video file mapping, and SMTP sequence conversion boundaries.
+ * Alarmbian playback management logic. Handles chronological timeline collation, video file mapping, and SMTP sequence conversion
+ * boundaries.
  *
  * @author Steven P. Goldsmith
  * @version 1.0.0
@@ -56,6 +56,13 @@ public class Play {
     private Integer playAfter;
 
     /**
+     * Managed SMTP classification types populated straight from system properties.
+     */
+    @Value("#{'${smtp.ui.types}'.split(',')}")
+    @Getter
+    private List<String> smtpUiTypes;
+
+    /**
      * Standard hardware motion sequence tokens.
      */
     private final String[] motionEvents = new String[]{"MOTION_START", "HISTORY_STOP", "MOTION_STOP"};
@@ -71,8 +78,7 @@ public class Play {
     }
 
     /**
-     * Calculate and display chronological window delta using HH:MM:SS format
-     * notation.
+     * Calculate and display chronological window delta using HH:MM:SS format notation.
      *
      * @param start Lower bound timestamp mark.
      * @param end Upper bound timestamp mark.
@@ -84,8 +90,7 @@ public class Play {
     }
 
     /**
-     * Retrieve hardware motion sequence logs bound by target device
-     * configurations.
+     * Retrieve hardware motion sequence logs bound by target device configurations.
      *
      * @return Unfiltered source database entity list records.
      */
@@ -94,11 +99,9 @@ public class Play {
     }
 
     /**
-     * Map sequence tracking blocks confirming alignment integrity across
-     * metrics.
+     * Map sequence tracking blocks confirming alignment integrity across metrics.
      *
-     * @return Structured lists containing standardized multi-event frame
-     * arrays.
+     * @return Structured lists containing standardized multi-event frame arrays.
      */
     public List<List<Event>> loadMotionEvents() {
         final var list = findMotionEvents();
@@ -125,8 +128,7 @@ public class Play {
     }
 
     /**
-     * Extract active background video storage frames associated with target
-     * operations.
+     * Extract active background video storage frames associated with target operations.
      *
      * @return Array collection of tracking entries.
      */
@@ -135,8 +137,7 @@ public class Play {
     }
 
     /**
-     * Construct lookup mappings referencing tracking files linked directly to
-     * storage assets.
+     * Construct lookup mappings referencing tracking files linked directly to storage assets.
      *
      * @return Unique filename-to-entity reference dictionary object.
      */
@@ -159,8 +160,7 @@ public class Play {
     }
 
     /**
-     * Fabricate simulated three-part tracking frameworks for raw standalone
-     * SMTP elements.
+     * Fabricate simulated three-part tracking frameworks for raw standalone SMTP elements.
      *
      * @param images Output multi-tier event configuration collection.
      * @param start Base video sequence marker context.
@@ -178,14 +178,26 @@ public class Play {
     }
 
     /**
-     * Map SMTP tracking frames across multi-file recording intervals. Resolves
-     * timeline processing issues when hardware files miss explicit stop tokens.
+     * Map SMTP tracking frames across multi-file recording intervals using the default configuration type. Resolves timeline
+     * processing issues when hardware files miss explicit stop tokens.
      *
      * @return Normalized tracking records arranged chronologically.
      */
     public List<List<Event>> loadSmtpMotionEvents() {
+        final var targetType = (smtpUiTypes == null || smtpUiTypes.isEmpty()) ? "SMTP_%" : smtpUiTypes.get(0);
+        return loadSmtpMotionEvents(targetType);
+    }
+
+    /**
+     * Map SMTP tracking frames across multi-file recording intervals using a dynamic relational type constraint. Resolves timeline
+     * processing issues when hardware files miss explicit stop tokens.
+     *
+     * @param eventType The specific enum classification type token or wildcard pattern to restrict rows by.
+     * @return Normalized tracking records arranged chronologically.
+     */
+    public List<List<Event>> loadSmtpMotionEvents(final String eventType) {
         final var videos = findVideos();
-        final var events = findSmtpMotionEvents();
+        final var events = findSmtpMotionEvents(eventType);
         final var images = new ArrayList<List<Event>>();
 
         if (videos.isEmpty() || events.isEmpty()) {
@@ -245,12 +257,21 @@ public class Play {
     }
 
     /**
-     * Extract raw standalone tracking transmissions arriving from external
-     * hardware.
+     * Extract raw standalone tracking transmissions arriving from external hardware using default wildcard matching.
      *
      * @return SMTP operational dataset list.
      */
     public List<Event> findSmtpMotionEvents() {
-        return eventService.findSmtpMotionEvents(deviceName);
+        return eventService.findSmtpMotionEvents(deviceName, "SMTP_%");
+    }
+
+    /**
+     * Extract raw standalone tracking transmissions arriving from external hardware using an exact query restriction token.
+     *
+     * @param eventType The dynamic SQL restriction token (e.g., "SMTP_VEHICLE", "SMTP_%").
+     * @return SMTP operational dataset list matching the specified constraint boundary.
+     */
+    public List<Event> findSmtpMotionEvents(final String eventType) {
+        return eventService.findSmtpMotionEvents(deviceName, eventType);
     }
 }
