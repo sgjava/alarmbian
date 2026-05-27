@@ -379,27 +379,51 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         switch (fe.getId()) {
             case "play" -> {
                 if (!images.isEmpty()) {
-                    final var bufferStart = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
-                    final var motionStart = images.get(index).get(0).getEventTime().toInstant();
-                    final var motionStop = images.get(index).get(2).getEventTime().toInstant();
-                    final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
-                    final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
-                    final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
-                    playFile(fileName, start.getSeconds(), duration.getSeconds());
+                    final var videoFileKey = images.get(index).get(0).getEventData();
+                    final var bufferEvent = buffers.get(videoFileKey);
+
+                    if (bufferEvent != null) {
+                        final var bufferStart = bufferEvent.getEventTime().toInstant();
+                        final var motionStart = images.get(index).get(0).getEventTime().toInstant();
+                        final var motionStop = images.get(index).get(2).getEventTime().toInstant();
+
+                        final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
+                        final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
+                        final var fileName = videoFileKey.replace(remoteFromPath, remoteToPath);
+
+                        // Prevent negative offsets to keep FFmpeg stable
+                        final var startSeconds = start.getSeconds() < 0 ? 0L : start.getSeconds();
+
+                        playFile(fileName, startSeconds, duration.getSeconds());
+                    } else {
+                        log.warn("Buffer map key '{}' not found. Cannot calculate synchronized playback.", videoFileKey);
+                    }
                 }
             }
             case "save" -> {
                 if (!images.isEmpty()) {
-                    final var bufferStart = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
-                    final var motionStart = images.get(index).get(0).getEventTime().toInstant();
-                    final var motionStop = images.get(index).get(2).getEventTime().toInstant();
-                    final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
-                    final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
-                    final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
-                    var file = new File(images.get(index).get(1).getEventData().replace("jpg", "mkv"));
-                    var saveFileName = file.getName();
-                    saveFile(fileName, start.getSeconds(), duration.getSeconds(), String.format("%s%s%s", localPath,
-                            File.separator, saveFileName));
+                    final var videoFileKey = images.get(index).get(0).getEventData();
+                    final var bufferEvent = buffers.get(videoFileKey);
+
+                    if (bufferEvent != null) {
+                        final var bufferStart = bufferEvent.getEventTime().toInstant();
+                        final var motionStart = images.get(index).get(0).getEventTime().toInstant();
+                        final var motionStop = images.get(index).get(2).getEventTime().toInstant();
+
+                        final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
+                        final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
+                        final var fileName = videoFileKey.replace(remoteFromPath, remoteToPath);
+
+                        final var startSeconds = start.getSeconds() < 0 ? 0L : start.getSeconds();
+
+                        final var file = new File(images.get(index).get(1).getEventData().replace("jpg", "mkv"));
+                        final var saveFileName = file.getName();
+
+                        saveFile(fileName, startSeconds, duration.getSeconds(), String.format("%s%s%s", localPath,
+                                File.separator, saveFileName));
+                    } else {
+                        log.warn("Buffer map key '{}' not found. Cannot execute synchronized save.", videoFileKey);
+                    }
                 }
             }
             case "events" -> {
