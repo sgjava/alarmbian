@@ -379,26 +379,48 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         switch (fe.getId()) {
             case "play" -> {
                 if (!images.isEmpty()) {
-                    final var bufferStart = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
+                    final var videoFileKey = images.get(index).get(0).getEventData();
+                    final var bufferStart = buffers.get(videoFileKey).getEventTime().toInstant();
                     final var motionStart = images.get(index).get(0).getEventTime().toInstant();
                     final var motionStop = images.get(index).get(2).getEventTime().toInstant();
-                    final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
-                    final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
-                    final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
-                    playFile(fileName, start.getSeconds(), duration.getSeconds());
+
+                    // Native motion rows need padding. Synthetic SMTP lists already have padding baked into the timestamps.
+                    final var start = "Motion".equalsIgnoreCase(currentEventType)
+                            ? Duration.between(bufferStart, motionStart).minusSeconds(playBefore)
+                            : Duration.between(bufferStart, motionStart);
+
+                    final var duration = "Motion".equalsIgnoreCase(currentEventType)
+                            ? Duration.between(motionStart, motionStop).plusSeconds(playAfter)
+                            : Duration.between(motionStart, motionStop);
+
+                    final var fileName = videoFileKey.replace(remoteFromPath, remoteToPath);
+                    // Protect against negative bounds tripping up ffplay argument injection
+                    final var startSeconds = start.getSeconds() < 0 ? 0L : start.getSeconds();
+
+                    playFile(fileName, startSeconds, duration.getSeconds());
                 }
             }
             case "save" -> {
                 if (!images.isEmpty()) {
-                    final var bufferStart = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
+                    final var videoFileKey = images.get(index).get(0).getEventData();
+                    final var bufferStart = buffers.get(videoFileKey).getEventTime().toInstant();
                     final var motionStart = images.get(index).get(0).getEventTime().toInstant();
                     final var motionStop = images.get(index).get(2).getEventTime().toInstant();
-                    final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
-                    final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
-                    final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
+
+                    final var start = "Motion".equalsIgnoreCase(currentEventType)
+                            ? Duration.between(bufferStart, motionStart).minusSeconds(playBefore)
+                            : Duration.between(bufferStart, motionStart);
+
+                    final var duration = "Motion".equalsIgnoreCase(currentEventType)
+                            ? Duration.between(motionStart, motionStop).plusSeconds(playAfter)
+                            : Duration.between(motionStart, motionStop);
+
+                    final var fileName = videoFileKey.replace(remoteFromPath, remoteToPath);
+                    final var startSeconds = start.getSeconds() < 0 ? 0L : start.getSeconds();
+
                     final var file = new File(images.get(index).get(1).getEventData().replace("jpg", "mkv"));
                     final var saveFileName = file.getName();
-                    saveFile(fileName, start.getSeconds(), duration.getSeconds(), String.format("%s%s%s", localPath,
+                    saveFile(fileName, startSeconds, duration.getSeconds(), String.format("%s%s%s", localPath,
                             File.separator, saveFileName));
                 }
             }
