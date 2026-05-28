@@ -387,11 +387,13 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                         final var motionStart = images.get(index).get(0).getEventTime().toInstant();
                         final var motionStop = images.get(index).get(2).getEventTime().toInstant();
 
-                        // Explicitly compute using your configured padding variables across both branches
-                        final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
-                        final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
+                        final var start = "Motion".equalsIgnoreCase(currentEventType)
+                                ? Duration.between(bufferStart, motionStart)
+                                : Duration.between(bufferStart, motionStart);
 
+                        final var duration = Duration.between(motionStart, motionStop);
                         final var fileName = videoFileKey.replace(remoteFromPath, remoteToPath);
+
                         // Prevent negative offsets to keep FFmpeg arguments stable
                         final var startSeconds = start.getSeconds() < 0 ? 0L : start.getSeconds();
 
@@ -411,9 +413,11 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                         final var motionStart = images.get(index).get(0).getEventTime().toInstant();
                         final var motionStop = images.get(index).get(2).getEventTime().toInstant();
 
-                        final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
-                        final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
+                        final var start = "Motion".equalsIgnoreCase(currentEventType)
+                                ? Duration.between(bufferStart, motionStart)
+                                : Duration.between(bufferStart, motionStart);
 
+                        final var duration = Duration.between(motionStart, motionStop);
                         final var fileName = videoFileKey.replace(remoteFromPath, remoteToPath);
                         final var startSeconds = start.getSeconds() < 0 ? 0L : start.getSeconds();
 
