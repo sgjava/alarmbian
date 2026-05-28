@@ -387,17 +387,12 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                         final var motionStart = images.get(index).get(0).getEventTime().toInstant();
                         final var motionStop = images.get(index).get(2).getEventTime().toInstant();
 
-                        final var start = "Motion".equalsIgnoreCase(currentEventType)
-                                ? Duration.between(bufferStart, motionStart)
-                                : Duration.between(bufferStart, motionStart);
-
-                        final var duration = Duration.between(motionStart, motionStop);
+                        // Your original exact math equations
+                        final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
+                        final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
                         final var fileName = videoFileKey.replace(remoteFromPath, remoteToPath);
 
-                        // Prevent negative offsets to keep FFmpeg arguments stable
-                        final var startSeconds = start.getSeconds() < 0 ? 0L : start.getSeconds();
-
-                        playFile(fileName, startSeconds, duration.getSeconds());
+                        playFile(fileName, start.getSeconds(), duration.getSeconds());
                     } else {
                         log.warn("Buffer map key '{}' not found. Cannot calculate synchronized playback.", videoFileKey);
                     }
@@ -413,18 +408,15 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                         final var motionStart = images.get(index).get(0).getEventTime().toInstant();
                         final var motionStop = images.get(index).get(2).getEventTime().toInstant();
 
-                        final var start = "Motion".equalsIgnoreCase(currentEventType)
-                                ? Duration.between(bufferStart, motionStart)
-                                : Duration.between(bufferStart, motionStart);
-
-                        final var duration = Duration.between(motionStart, motionStop);
+                        // Your original exact math equations
+                        final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
+                        final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
                         final var fileName = videoFileKey.replace(remoteFromPath, remoteToPath);
-                        final var startSeconds = start.getSeconds() < 0 ? 0L : start.getSeconds();
 
                         final var file = new File(images.get(index).get(1).getEventData().replace("jpg", "mkv"));
                         final var saveFileName = file.getName();
 
-                        saveFile(fileName, startSeconds, duration.getSeconds(), String.format("%s%s%s", localPath,
+                        saveFile(fileName, start.getSeconds(), duration.getSeconds(), String.format("%s%s%s", localPath,
                                 File.separator, saveFileName));
                     } else {
                         log.warn("Buffer map key '{}' not found. Cannot execute synchronized save.", videoFileKey);
