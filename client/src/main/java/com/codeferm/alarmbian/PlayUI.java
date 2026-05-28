@@ -387,11 +387,12 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                         final var motionStart = images.get(index).get(0).getEventTime().toInstant();
                         final var motionStop = images.get(index).get(2).getEventTime().toInstant();
 
+                        // Explicitly compute using your configured padding variables across both branches
                         final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
                         final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
-                        final var fileName = videoFileKey.replace(remoteFromPath, remoteToPath);
 
-                        // Prevent negative offsets to keep FFmpeg stable
+                        final var fileName = videoFileKey.replace(remoteFromPath, remoteToPath);
+                        // Prevent negative offsets to keep FFmpeg arguments stable
                         final var startSeconds = start.getSeconds() < 0 ? 0L : start.getSeconds();
 
                         playFile(fileName, startSeconds, duration.getSeconds());
@@ -412,8 +413,8 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
 
                         final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
                         final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
-                        final var fileName = videoFileKey.replace(remoteFromPath, remoteToPath);
 
+                        final var fileName = videoFileKey.replace(remoteFromPath, remoteToPath);
                         final var startSeconds = start.getSeconds() < 0 ? 0L : start.getSeconds();
 
                         final var file = new File(images.get(index).get(1).getEventData().replace("jpg", "mkv"));
