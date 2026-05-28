@@ -128,9 +128,9 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
      */
     private final Mat dest;
     /**
-     * SMTP images?
+     * Target SQL relation field constraint variable state tracking selection parameters.
      */
-    private boolean smtpImages = false;
+    private String currentEventType;
 
     /**
      * Set font globally.
@@ -153,15 +153,21 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     }
 
     /**
-     * Refresh from database.
+     * Refresh from database using modern parameterized set-algebra rules.
      */
     public void refresh() {
         buffers = play.loadMotionBuffers();
-        if (smtpImages) {
-            images = play.loadSmtpMotionEvents();
-        } else {
-            images = play.loadMotionEvents();
+
+        if (currentEventType == null && play.getSmtpUiTypes() != null && !play.getSmtpUiTypes().isEmpty()) {
+            currentEventType = play.getSmtpUiTypes().get(0);
         }
+
+        if ("Motion".equalsIgnoreCase(currentEventType)) {
+            images = play.loadMotionEvents();
+        } else {
+            images = play.loadSmtpMotionEvents(currentEventType);
+        }
+
         elements = new ArrayList<>();
         timestamps = new HashMap<>();
         var i = 0;
@@ -173,31 +179,34 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         for (i = images.size(); i-- > 0;) {
             elements.add(play.formatTimestamp(images.get(i).get(0).getEventTime()));
         }
-        index = images.size() - 1;
+        index = images.isEmpty() ? 0 : images.size() - 1;
     }
 
     /**
      * Blocking call until OK button pressed.
      *
-     * @return @throws Exception Possible exception.
+     * @return Execution confirmation code.
+     * @throws Exception Possible exception.
      */
+    @Override
     public Integer call() throws Exception {
         final var dialog = booster.showWaitingDialog("Operation", play.getDeviceName());
         dialog.addToLargeMessage("Refresh data");
         refresh();
-        index = images.size() - 1;
         dialog.close();
+
+        final var initialIndex = images.isEmpty() ? 0 : images.size() - 1;
+        final var initialPreviewFile = images.isEmpty() ? "" : images.get(initialIndex).get(1).getEventData().replace(remoteFromPath, remoteToPath);
+
         booster.createForm(play.getDeviceName()).
-                addCustomElement(new IconFormElement(getImageIcon(null, images.get(index).get(1).getEventData().replace(
-                        remoteFromPath, remoteToPath)))).
+                addCustomElement(new IconFormElement(getImageIcon(null, initialPreviewFile))).
                 setID("image").
                 startRow().
                 addSelection("Events", elements).setID("events").
-                addText("Duration", play.formatDuration(images.get(index).get(0).getEventTime(), images.get(index).get(2).
-                        getEventTime()), true).setID("duration").
+                addText("Duration", images.isEmpty() ? "00:00:00" : play.formatDuration(images.get(initialIndex).get(0).getEventTime(), images.get(initialIndex).get(2).getEventTime()), true).setID("duration").
                 addText("Before", String.valueOf(playBefore)).setID("before").
                 addText("After", String.valueOf(playAfter)).setID("after").
-                addSelection("Event Type", "Motion", "SMTP").setID("eventType").
+                addSelection("Event Type", play.getSmtpUiTypes()).setID("eventType").
                 endRow().
                 startRow().
                 addButton("Play", () -> {
@@ -209,6 +218,7 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 endRow().
                 andWindow().setSize(xMax + 40, yMax + 310).save().
                 setChangeListener(this).show();
+
         // Clean up
         matToBufImg.done();
         return 0;
@@ -222,6 +232,9 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
      * @return Image icon.
      */
     public ImageIcon getImageIcon(final Form form, final String fileName) {
+        if (fileName == null || fileName.isBlank() || !(new File(fileName).exists())) {
+            return new ImageIcon(new BufferedImage(xMax, yMax, BufferedImage.TYPE_3BYTE_BGR));
+        }
         ImageIcon imageIcon = null;
         // Get preview image
         source = Imgcodecs.imread(fileName);
@@ -249,14 +262,16 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
      * @param form Form to update.
      */
     public void update(final Form form) {
-        var duration = (TextFormElement) form.getById("duration");
-        duration.setValue(play.formatDuration(images.get(index).get(0).getEventTime(), images.get(index).get(2).getEventTime()));
+        if (!images.isEmpty()) {
+            var duration = (TextFormElement) form.getById("duration");
+            duration.setValue(play.formatDuration(images.get(index).get(0).getEventTime(), images.get(index).get(2).getEventTime()));
+        }
     }
 
     /**
      * Use ffmpeg to save file clip.
-     * 
-     * @param fileName Video buffer file.
+     *
+     * * @param fileName Video buffer file.
      * @param start Start offset.
      * @param duration Duration in seconds.
      * @param outputFileName Output file name.
@@ -343,12 +358,10 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
      * @return true if integer.
      */
     public boolean isInteger(String str) {
-        // This handles negative signs, leading/trailing spaces, and format
         try {
             Integer.valueOf(str);
             return true;
         } catch (NumberFormatException e) {
-            // If parsing fails, it's not a valid integer
             return false;
         }
     }
@@ -387,22 +400,26 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
             }
             case "events" -> {
                 var value = (String) form.getById("events").getValue();
-                // This will happen when Refresh pressed bacause selection list is updated
-                if (!StringUtils.isEmpty(value)) {
+                if (!StringUtils.isEmpty(value) && timestamps.containsKey(value)) {
                     index = timestamps.get(value);
                     label.setIcon(getImageIcon(form, images.get(index).get(1).getEventData().replace(remoteFromPath, remoteToPath)));
                 }
             }
             case "eventType" -> {
                 var selectedType = (String) o;
-                if ("SMTP".equals(selectedType)) {
-                    smtpImages = true;
-                } else {
-                    smtpImages = false;
+                if (selectedType != null && !selectedType.isBlank()) {
+                    currentEventType = selectedType.trim();
+                    refresh();
+                    var selection = form.getById("events").toSelection();
+                    selection.setPossibilities(elements);
+
+                    if (!images.isEmpty()) {
+                        index = images.size() - 1;
+                        label.setIcon(getImageIcon(form, images.get(index).get(1).getEventData().replace(remoteFromPath, remoteToPath)));
+                    } else {
+                        label.setIcon(getImageIcon(form, null));
+                    }
                 }
-                refresh();
-                var selection = form.getById("events").toSelection();
-                selection.setPossibilities(elements);
             }
             case "refresh" -> {
                 refresh();
