@@ -321,17 +321,15 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         final var command = new ArrayList<String>();
         command.add("ffplay");
         command.add("-autoexit");
-        command.add("-fflags");
-        command.add("nobuffer");
-        command.add("-analyzeduration");
-        command.add("0");
-        command.add("-probesize");
-        command.add("32");
-        command.add(fileName);
+        // Put -ss BEFORE the input file so FFmpeg seeks via file index headers instantly
         command.add("-ss");
         command.add(String.valueOf(start));
+        // Duration filter
         command.add("-t");
         command.add(String.valueOf(duration));
+        // Target input file
+        command.add(fileName);
+        // Letting ffplay use its natural defaults ensures proper frame clocking.
         final var pb = new ProcessBuilder(command);
         pb.redirectErrorStream(true);
         try {
