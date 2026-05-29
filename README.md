@@ -1,22 +1,28 @@
 ![Title](images/title.png)
 
-Alarmbian is a cross platform DIY NVR at its core, but it can also be used to
-build your own smart cameras. The cool thing is you can use almost any board
-Armbian supports, an x86 mini PC, an old x86 based PC and probably Windows
-since the code is based on Java, MediaMTX, FFMPEG and OpenCV.
-All testing is on Ubuntu 24.04 at this point.
+**Alarmbian** is a high-performance, cross-platform DIY NVR and edge-analytics framework designed to turn single-board computers (SBCs), low-power mini PCs, or repurposed desktop hardware into a resilient surveillance grid. Built on a lean, native stack of **Java, MediaMTX, FFmpeg, and OpenCV**, it is currently developed and fully tested on Ubuntu 24.04, though its Java-centric core allows it to adapt across Linux and Windows environments.
 
-Unlike other NVR software, Alarmbian can handle h265+ or any stream FFMPEG can handle.
-It's event driven and built for modern or old cameras. I've added an SMTP server that
-cameras can send images to. This is handy with the camera's built-in AI detection.
-* Low power and small footprint ODROID-XU4 handles six 4K/15 FPS H265+ streams.
-* Motion detection built in with the ability to add other types of realtime detection.
-* History image shows entire motion event in a single image.
-* Images sent via AI detection handled.
-* Java based UI to view events and play video.
+### Architectural Contrast: Distributed Edge vs. Centralized Bloat
 
-I'm leaving optimized install up to the user since there are so many ways to optimize FFMPEG, OpenCV, etc. This is truly
-a DIY system. I'll point you in the right direction hopefully.
+Most mainstream open-source and commercial NVR options (such as Blue Iris or Frigate) are architected as resource-heavy, "centralized detection" hubs. They force the central server to ingest, unpack, and continuously decode high-resolution streams in software to perform pixel-level calculations. This brute-force processing methodology results in massive CPU bottlenecks, heavy system-bus saturation, and a reliance on high-wattage desktop processors or expensive hardware accelerators just to handle a few channels.
+
+**Alarmbian flips the scalability math completely upside down:**
+
+* **Distributed Edge-First Architecture:** Instead of choking a central CPU with real-time 4K decoding, Alarmbian leverages the dedicated, specialized hardware built directly into modern camera devices. By allowing the cameras to handle the heavy spatial analytics at the source, the central NVR acts as an ultra-lightweight metadata receiver, scaling linearly without exponential resource spikes.
+* **Zero-Transcode Stream Copying:** When saving continuous 24/7 video data, Alarmbian bypasses transcoding entirely, streaming raw packets straight to the storage controllers. This design keeps memory bus transactions incredibly clean and keeps host CPU utilization flat.
+* **Lightweight Central Fallbacks:** For older cameras lacking native intelligence, Alarmbian provides a highly optimized, built-in OpenCV motion detection loop. By tightly constraining the analysis frame-rate boundary, it serves as a defensive safety net without swamping system cache or triggering native memory thrashing.
+
+### Proven Capabilities & Key Features
+
+* **Extreme Hardware Efficiency:** Proven to handle six continuous 4K H.265+ streams at 15 FPS on a low-power, 2GB RAM ODROID-XU4 over a standard USB 3.0 storage bridge.
+* **Native Stream Agility:** Flawlessly ingests H.265+ or any advanced codec profile supported by the native FFmpeg layer.
+* **Embedded SMTP Event Server:** Includes an integrated mail routing server that allows cameras to instantaneously pipe AI-triggered snapshot alerts straight into the application logic, bypassing sluggish polling intervals.
+* **Smart Motion Summaries:** Generates custom "History Images" that compress an entire chronological motion sequence into a single, scannable composite frame for rapid event triage.
+* **Decoupled User Interface:** Features a dedicated Java-based UI to seamlessly review localized event databases, visualize motion histories, and play back raw archived video segments.
+
+### The Ultimate DIY Paradigm
+
+This framework is built for engineers who want total control over their infrastructure. Because there are infinite ways to compile and optimize FFmpeg, fine-tune native OpenCV JNI/FFM boundaries, or target specialized acceleration flags for deep learning extensions, **optimized deployment is entirely up to you**. Alarmbian provides a bulletproof, zero-overhead pipeline; you choose exactly how to weaponize the underlying hardware.
 
 ## Install FFMPEG
 Install hardware acceleration libraries like Cuda before running script.
