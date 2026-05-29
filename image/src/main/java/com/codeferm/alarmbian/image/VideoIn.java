@@ -7,19 +7,20 @@ import com.codeferm.alarmbian.type.VideoSource;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.opencv.core.Mat;
 import org.opencv.videoio.VideoCapture;
-import org.opencv.videoio.Videoio;
 
 /**
- * Read frames from OpenCV VideoCapture source.
+ * Read frames from OpenCV VideoCapture source safely using allocation-free buffer reuse. Handles numeric device IDs (including
+ * negative wildcards like -1) and RTSP URL strings.
  *
  * @author Steven P. Goldsmith
- * @version 1.0.0
+ * @version 1.0.1
  * @since 1.0.0
  */
 @Data
@@ -29,7 +30,12 @@ import org.opencv.videoio.Videoio;
 public class VideoIn extends VideoSource {
 
     /**
-     * Mat for image capture.
+     * Regex pattern matching integers, including optional leading negative signs for default device.
+     */
+    private static final Pattern NUMERIC_PATTERN = Pattern.compile("^-?\\d+$");
+
+    /**
+     * Reusable pre-allocated Mat for frame ingestion to prevent native memory leaks.
      */
     private Mat mat;
     /**
@@ -50,73 +56,93 @@ public class VideoIn extends VideoSource {
     private Instant nextFrame = Instant.now();
 
     /**
-     * Open OpenCV VideoCapture.
+     * Open OpenCV VideoCapture by parsing the device parameter as an index or a URL. Pre-allocates native frame buffer safely.
      *
-     * @param device String representation of device.
-     * @return True on success and false on failure.
+     * @param device String representation of device (URL or numeric index/wildcard).
+     * @return True if opened successfully.
      */
-    @Override
-    public boolean open(String device) {
-        // See if device is an integer: -? = negative sign, could have none or one,
-        // \\d+ = one or more digits
-        if (device.matches("-?\\d+")) {
-            videoCapture = new VideoCapture();
-            videoCapture.open(Integer.parseInt(device));
-        } else {
-            videoCapture = new VideoCapture();
-            videoCapture.open(device);
-            fps = videoCapture.get(Videoio.CAP_PROP_FPS);
-            // Returns 90000.0 for RTSP stream
-            if (Double.compare(fps, 90000.0) != 0) {
-                // MS to delay if FPS > 0.0
-                if (fps > 0.0) {
-                    delay = Math.round(1000.0 / fps);
-                }
+    public boolean open(final String device) {
+        var opened = false;
+        // Prevent leaks if open is called sequentially on a single instance lifecycle
+        if (mat != null) {
+            mat.release();
+            mat = null;
+        }
+        try {
+            // Check if the device parameter string matches your integer pattern
+            if (NUMERIC_PATTERN.matcher(device).matches()) {
+                final var deviceIndex = Integer.parseInt(device);
+                log.info("Initializing VideoCapture using native device index/wildcard: {}", deviceIndex);
+                videoCapture = new VideoCapture(deviceIndex);
             } else {
-                fps = 0.0;
+                log.info("Initializing VideoCapture using native network stream URL: {}", device);
+                videoCapture = new VideoCapture(device);
             }
-            log.debug(String.format("FPS: %3.1f", fps));
+            opened = videoCapture.isOpened();
+            if (opened) {
+                // Pre-allocate the reusable frame buffer once upon stream initialization
+                mat = new Mat();
+                log.info("Opened video device: {}", device);
+            } else {
+                log.error("Failed to open video device: {}", device);
+            }
+        } catch (final Exception ex) {
+            log.error("Exception encountered initializing native VideoCapture handle", ex);
         }
-        // Create Mat if needed
-        if (mat == null) {
-            mat = new Mat();
-
-        }
-        return getFrame() != null;
+        return opened;
     }
 
     /**
-     * Return image as a Mat or null if no frame read.
+     * Return image as a safely validated Mat pointer or null if no frame read. Reuses the internal pre-allocated Mat structure to
+     * avoid native frame-by-frame leaks.
      *
-     * @return Image as a Mat or null.
+     * @return Image as a Mat pointer or null.
      */
     @Override
     public Mat getFrame() {
+        if (videoCapture == null || !videoCapture.isOpened() || mat == null) {
+            log.error("VideoCapture interface or buffer context is uninitialized.");
+            return null;
+        }
         final var check = Instant.now().plusMillis(getTimeout());
         var read = false;
-        while (!read && check.compareTo(Instant.now()) > 0) {
-            read = videoCapture.read(mat);
-            // If read failed sleep 1/10th of the timeout so as not to kill CPU by looping rapidly
-            if (!read) {
-                try {
-                    TimeUnit.MILLISECONDS.sleep(getTimeout() / 10);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
+        try {
+            while (!read && check.compareTo(Instant.now()) > 0) {
+                // Reuse the same block-allocated native buffer memory address
+                read = videoCapture.read(mat);
+
+                // CRITICAL CORRUPTION GUARD:
+                // Intercept truncated network packets that corrupt inner C++ layout pointers
+                if (read && (mat.empty() || mat.rows() == 0 || mat.cols() == 0)) {
+                    log.warn("Corrupt or empty frame boundary intercepted inside JNI layer.");
+                    read = false;
+                }
+                if (!read) {
+                    try {
+                        TimeUnit.MILLISECONDS.sleep(getTimeout() / 10);
+                    } catch (final InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
                 }
             }
+        } catch (final Exception ex) {
+            log.error("Intercepted native memory exception during stream ingestion", ex);
+            read = false;
         }
         var frame = mat;
         if (!read) {
             frame = null;
         }
-        // This delay is useful for video file input where you want the FPS simmulated
+
+        // Apply processing frame-rate pacing for file simulation mode
         if (fps > 0.0) {
             final var sleepTime = delay - ChronoUnit.MILLIS.between(nextFrame, Instant.now());
             nextFrame = Instant.now();
             if (sleepTime > 0) {
                 try {
                     TimeUnit.MILLISECONDS.sleep(sleepTime);
-                } catch (InterruptedException e) {
+                } catch (final InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
             }
@@ -125,12 +151,25 @@ public class VideoIn extends VideoSource {
     }
 
     /**
-     * Release VideoCapture.
+     * Release VideoCapture and explicitly de-allocate native Mat memory structures.
      */
     @Override
     public void close() {
-        mat.release();
-        mat = null;
-        videoCapture.release();
+        try {
+            if (mat != null) {
+                // Explicitly invoke native C++ de-allocator to avoid memory leaks
+                mat.release();
+                mat = null;
+                log.info("Native frame buffer memory context de-allocated.");
+            }
+            if (videoCapture != null) {
+                videoCapture.release();
+                log.info("Native VideoCapture hardware channel context closed.");
+            }
+        } catch (final Exception ex) {
+            log.error("Error encountered executing native wrapper teardown lifecycle", ex);
+        } finally {
+            videoCapture = null;
+        }
     }
 }
