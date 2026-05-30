@@ -1,34 +1,29 @@
 ![Title](images/title.png)
 
-# Alarmbian: High-Performance, Distributed Edge NVR
-
 Alarmbian is a high-performance, cross-platform DIY NVR and edge-analytics framework designed to turn single-board computers (SBCs), low-power mini PCs, or repurposed desktop hardware into a resilient surveillance grid. Built on a lean, native stack of Java, MediaMTX, FFmpeg, and OpenCV, it is optimized for Linux environments (tested on Ubuntu 24.04) while remaining highly portable due to its Java-centric core.
 
-## The Architectural Reality: Passive Vault vs. Active Central Processing
+## The Architectural Reality: Zero-Overhead Metadata vs. Centralized Processing
 
-While modern NVR architectures like Blue Iris and Frigate have adopted "Direct-to-Disc" stream copying to save high-resolution main streams without transcoding, they still rely on an **active, centralized processing loop** for ingestion and event detection. 
+While modern NVR architectures like Blue Iris and Frigate have adopted "Direct-to-Disc" stream copying to save high-resolution main streams without transcoding, they still rely on a **heavy, centralized processing loop** for event detection and classification. To continuously track objects (humans, cars, animals), these traditional setups force the central server to decode live streams 24/7 through a resource-hungry machine learning pipeline, requiring dedicated hardware accelerators (like Coral TPUs) or high-wattage desktop processors just to keep up.
 
-To detect motion or classify objects, these traditional setups must continuously unpack network protocols, allocate memory buffers, and decode live streams (sub-streams or main streams) in software or hardware. This continuous 24/7 visual parsing creates a baseline load of memory bus saturation, context switching, and CPU/GPU overhead, requiring specialized AI accelerators (like Coral TPUs) or high-wattage desktop processors just to keep up with multiple channels.
+Alarmbian flips this paradigm by eliminating centralized object classification entirely, dividing cameras into two highly optimized, independent pipelines:
 
-Alarmbian flips this paradigm entirely by treating the central server as a **passive, zero-overhead data vault**:
-
-*   **Distributed Edge-First Architecture:** Alarmbian completely offloads the computational cost of visual analysis. It leverages the dedicated, specialized AI silicon built directly into modern 4K IP cameras. The camera handles 100% of the spatial analytics (person, vehicle, pet detection) at the source and transmits lightweight, text-based metadata alerts when an event occurs.
-*   **Zero-Overhead Event Ingestion:** The central Alarmbian server does not decode, analyze, or even look at video frames to find events. It runs a lightweight embedded SMTP and event listener. When a camera's edge chip detects a target, it fires an instantaneous alert to the listener. Alarmbian catches this metadata trigger and flags the raw stream copy for archival, keeping host CPU utilization completely flat.
-*   **Optimal Bus and Memory Efficiency:** By eliminating the need to pass uncompressed, decoded video frames across shared memory segments (`/dev/shm`) or pipeline wrappers, system bus transactions remain minimal. The server acts as a high-speed traffic cop, writing raw network packets straight to storage controllers without intermediate rendering steps.
-*   **Lightweight Defensive Fallbacks:** For older, legacy cameras lacking native edge intelligence, Alarmbian provides a highly optimized OpenCV motion detection loop. By tightly constraining the frame-rate boundary and analysis regions, it acts as an isolated safety net without swamping the system cache or triggering native memory thrashing.
+* **Edge-AI Cameras (Zero-Decoding Metadata Receiver):** For modern smart cameras, Alarmbian completely offloads both motion detection and object classification to the edge. The camera's on-board AI chip handles 100% of the spatial analysis natively at the lens. When a human, vehicle, or pet is identified, the camera fires an instantaneous, text-based alert or snapshot to Alarmbian's embedded SMTP server. The central server catches this metadata trigger and flags the archive without ever decoding a single video frame for analysis.
+* **Legacy Cameras (Lightweight OpenCV Motion Isolation Only):** For older cameras lacking native intelligence, Alarmbian provides a defensive fallback loop using OpenCV to decode the low-resolution sub-stream feed—**solely for pixel-level motion detection, never for object classification.** To prevent CPU spikes, Alarmbian utilizes strict frame-rate boundaries and recycles pre-allocated native memory buffers. It reuses the exact same byte arrays frame after frame, keeping host CPU cache lines clean.
+* **Zero-Overhead Main Stream Pass-Through:** Regardless of the camera type, the high-resolution 4K main stream bypasses the detection logic entirely. Raw network packets are written straight to storage controllers via MediaMTX/FFmpeg stream-copy templates without intermediate rendering steps or memory bus transactions.
 
 ## Proven Capabilities & Key Features
 
-*   **Bare-Metal Hardware Efficiency:** Proven to handle six continuous 4K H.265+ streams at 15 FPS on a low-power, 2GB RAM ARM-based ODROID-XU4 over a standard USB 3.0 storage bridge.
-*   **Embedded SMTP Event Server:** Includes an integrated, high-speed mail routing server that allows edge cameras to pipe AI-triggered snapshot alerts straight into the application logic, bypassing sluggish polling intervals or continuous stream decoding.
-*   **Native Stream Pass-Through:** Ingests and saves raw H.264, H.265+, or any advanced codec profile supported by the native FFmpeg layer without modifying a single video packet.
-*   **Smart Motion Summaries:** Generates custom "History Images" that compress an entire chronological motion sequence into a single, scannable composite frame for rapid event triage without scrubbing through hours of footage.
-*   **Decoupled User Interface:** Features a dedicated Java-based UI to seamlessly review localized event databases, visualize motion histories, and play back raw archived video segments.
+* **Bare-Metal Hardware Efficiency:** Proven to handle six continuous 4K H.265+ streams at 15 FPS on a low-power, 2GB RAM ARM-based ODROID-XU4 over a standard USB 3.0 storage bridge.
+* **Embedded SMTP Event Server:** Includes an integrated, high-speed mail routing server that allows edge-AI cameras to pipe snapshot and classification alerts straight into the application logic, bypassing sluggish polling intervals.
+* **Isolated Sub-Stream Motion Detection:** Features an ultra-lean OpenCV decoding pipeline dedicated strictly to pixel-level motion tracking for non-AI feeds, keeping the host free from expensive machine learning calculations.
+* **Native Stream Pass-Through:** Ingests and saves raw H.264, H.265+, or any advanced codec profile supported by the native FFmpeg layer without modifying a single video packet.
+* **Smart Motion Summaries:** Generates custom "History Images" that compress an entire chronological motion sequence into a single, scannable composite frame for rapid event triage without scrubbing through hours of footage.
+* **Decoupled User Interface:** Features a dedicated Java-based UI to seamlessly review localized event databases, visualize motion histories, and play back raw archived video segments.
 
 ## The Ultimate DIY Paradigm
 
 This framework is built for engineers who demand total control over their infrastructure. Because there are infinite ways to compile and optimize FFmpeg, fine-tune native OpenCV JNI/FFM boundaries, or target specialized acceleration flags for deep learning extensions, optimized deployment is entirely up to you. Alarmbian provides a bulletproof, zero-overhead pipeline; you choose exactly how to weaponize the underlying hardware.
-
 ## Install FFMPEG
 Install hardware acceleration libraries like Cuda before running script.
 * `cd ~/alarmbian/scripts`
