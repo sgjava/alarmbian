@@ -326,8 +326,8 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     /**
      * Use ffplay to play motion from buffer using start and duration.
      * <p>
-     * Employs absolute time string formatting to trigger direct metadata index map parsing, bypassing expensive sequential cluster
-     * scanning.
+     * Includes native console diagnostics to track metadata index tracking performance and verify runtime argument string
+     * construction.
      * </p>
      *
      * @param fileName Video buffer file.
@@ -335,19 +335,26 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
      * @param duration Duration in seconds.
      */
     public void playFile(final String fileName, final long start, final long duration) {
+        final var seekStr = formatAbsoluteTime(start);
+        final var durationStr = formatAbsoluteTime(duration);
+
+        // 10x Diagnostics: Dump exact execution bounds to stdout before spawning process
+        System.out.printf("%n[PlayUI Diagnostics]%n");
+        System.out.printf("  Target File: %s%n", fileName);
+        System.out.printf("  Raw Seconds: Start=%d, Duration=%d%n", start, duration);
+        System.out.printf("  Seek String: %s (-ss)%n", seekStr);
+        System.out.printf("  Clip Length: %s (-t)%n", durationStr);
+        System.out.printf("  File Exists: %b%n%n", new java.io.File(fileName).exists());
+
         final var command = new ArrayList<String>();
         command.add("ffplay");
         command.add("-autoexit");
-        // Force absolute time tracking (hh:mm:ss) to leverage the container cues index
         command.add("-ss");
-        command.add(formatAbsoluteTime(start));
-        // Strict duration constraint
+        command.add(seekStr);
         command.add("-t");
-        command.add(formatAbsoluteTime(duration));
-        // Drop demuxer queues for immediate look-ahead processing
+        command.add(durationStr);
         command.add("-fflags");
         command.add("+nobuffer+fastseek");
-        // Prioritize video tracking over audio clock sync slips
         command.add("-sync");
         command.add("video");
         command.add("-framedrop");
@@ -355,7 +362,6 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         command.add(fileName);
 
         final var pb = new ProcessBuilder(command);
-        // Bind streams straight to system console to prevent standard I/O pipe lockups
         pb.inheritIO();
 
         try {
