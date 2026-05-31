@@ -313,8 +313,8 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     /**
      * Use ffplay to play motion from buffer using start and duration.
      * <p>
-     * Employs advanced streaming low-latency arguments to prevent frame stall and force instantaneous keyframe tracking
-     * synchronization.
+     * Employs advanced streaming low-latency arguments to prevent frame stall and utilizes native terminal stream discarding to
+     * eliminate buffer lockups.
      * </p>
      *
      * @param fileName Video buffer file.
@@ -325,35 +325,28 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         final var command = new ArrayList<String>();
         command.add("ffplay");
         command.add("-autoexit");
-        // Input-level seek uses container metadata headers for instant tracking
         command.add("-ss");
         command.add(String.valueOf(start));
-        // Strict clip timeline constraint
         command.add("-t");
         command.add(String.valueOf(duration));
-        // Low-latency buffer tuning parameters
         command.add("-fflags");
         command.add("+nobuffer+fastseek");
-        // Force clock sync to video packets so audio skips never cause visual freezes
         command.add("-sync");
         command.add("video");
-        // Drop late frames immediately if the rendering pipeline trails the timeline
         command.add("-framedrop");
-        // Use non-blocking memory allocation structures for the disk buffer queue
         command.add("-infbuf");
-        // Target input media source path
         command.add(fileName);
 
         final var pb = new ProcessBuilder(command);
-        pb.redirectErrorStream(true);
+
+        // Attach the process directly to the system console, or discard output entirely.
+        // This stops Java from tracking/buffering stderr/stdout text pipes completely.
+        pb.inheritIO();
+
         try {
             final var pc = pb.start();
-            try (final var inputStatus = pc.getInputStream(); final var readStatus = new BufferedReader(new InputStreamReader(inputStatus))) {
-                while (readStatus.readLine() != null) {
-                    // Drain the buffer sequentially to prevent process deadlocks
-                }
-            }
             try {
+                // No more blocking readLine loop slowing down the stream cycle!
                 pc.waitFor();
                 pc.destroy();
             } catch (final InterruptedException e) {
