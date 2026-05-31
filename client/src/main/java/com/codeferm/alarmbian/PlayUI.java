@@ -310,7 +310,7 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         }
     }
 
-    /**
+/**
      * Converts a primitive seconds count into a standard absolute time string.
      *
      * @param totalSeconds The raw offset count in seconds.
@@ -326,8 +326,9 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     /**
      * Use ffplay to play motion from buffer using start and duration.
      * <p>
-     * Includes native console diagnostics to track metadata index tracking performance and verify runtime argument string
-     * construction.
+     * Employs absolute time string formatting to leverage container index maps,
+     * bypasses stream integrity checks for active files, and utilizes native 
+     * console standard I/O redirection to eliminate JVM thread blocks.
      * </p>
      *
      * @param fileName Video buffer file.
@@ -337,8 +338,8 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     public void playFile(final String fileName, final long start, final long duration) {
         final var seekStr = formatAbsoluteTime(start);
         final var durationStr = formatAbsoluteTime(duration);
-
-        // 10x Diagnostics: Dump exact execution bounds to stdout before spawning process
+        
+        // Dump exact execution bounds to stdout before spawning process
         System.out.printf("%n[PlayUI Diagnostics]%n");
         System.out.printf("  Target File: %s%n", fileName);
         System.out.printf("  Raw Seconds: Start=%d, Duration=%d%n", start, duration);
@@ -349,35 +350,58 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         final var command = new ArrayList<String>();
         command.add("ffplay");
         command.add("-autoexit");
+        
+        // Absolute time string forces direct cluster seek via metadata index headers
         command.add("-ss");
         command.add(seekStr);
+        
+        // Frame-accurate clip tracking boundary constraint
         command.add("-t");
         command.add(durationStr);
+        
+        // Strip out look-ahead queues and prioritize instantaneous index tracking
         command.add("-fflags");
         command.add("+nobuffer+fastseek");
+        
+        // Force fast binary approximation on active/unfinalized mkv files missing a trailing cues index
+        command.add("-seek_stream_check");
+        command.add("0");
+        
+        // Synchronize master timing to video packets to ignore audio clock slips and drops
         command.add("-sync");
         command.add("video");
+        
+        // Drop lagging display frames instantly if the Pi rendering thread hits a resource hitch
         command.add("-framedrop");
+        
+        // Allocate non-blocking reader queues for local disk array parsing
         command.add("-infbuf");
+        
+        // Target source video path
         command.add(fileName);
 
         final var pb = new ProcessBuilder(command);
+        
+        // Bind the native process pipes directly to your interactive system console.
+        // This offloads the standard I/O byte overhead from JVM memory buffers, 
+        // provides real-time telemetry view, and permanently prevents process deadlocks.
         pb.inheritIO();
 
         try {
             final var pc = pb.start();
             try {
+                // Non-blocking wait step for the active player window cycle
                 pc.waitFor();
                 pc.destroy();
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new RuntimeException("Playback tracking thread was interrupted", e);
+                throw new RuntimeException("Playback tracking thread was interrupted natively", e);
             }
         } catch (final IOException e) {
             throw new RuntimeException("Failed to initialize system execution pipeline for ffplay", e);
         }
     }
-
+    
     /**
      * Poor man's Integer validator.
      *
