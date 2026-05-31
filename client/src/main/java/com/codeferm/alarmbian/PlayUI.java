@@ -312,40 +312,56 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
 
     /**
      * Use ffplay to play motion from buffer using start and duration.
+     * <p>
+     * Employs advanced streaming low-latency arguments to prevent frame stall and force instantaneous keyframe tracking
+     * synchronization.
+     * </p>
      *
      * @param fileName Video buffer file.
-     * @param start Start offset.
+     * @param start Start offset in seconds.
      * @param duration Duration in seconds.
      */
     public void playFile(final String fileName, final long start, final long duration) {
         final var command = new ArrayList<String>();
         command.add("ffplay");
         command.add("-autoexit");
-        // Put -ss BEFORE the input file so FFmpeg seeks via file index headers instantly
+        // Input-level seek uses container metadata headers for instant tracking
         command.add("-ss");
         command.add(String.valueOf(start));
-        // Duration filter
+        // Strict clip timeline constraint
         command.add("-t");
         command.add(String.valueOf(duration));
-        // Target input file
+        // Low-latency buffer tuning parameters
+        command.add("-fflags");
+        command.add("+nobuffer+fastseek");
+        // Force clock sync to video packets so audio skips never cause visual freezes
+        command.add("-sync");
+        command.add("video");
+        // Drop late frames immediately if the rendering pipeline trails the timeline
+        command.add("-framedrop");
+        // Use non-blocking memory allocation structures for the disk buffer queue
+        command.add("-infbuf");
+        // Target input media source path
         command.add(fileName);
-        // Letting ffplay use its natural defaults ensures proper frame clocking.
+
         final var pb = new ProcessBuilder(command);
         pb.redirectErrorStream(true);
         try {
             final var pc = pb.start();
             try (final var inputStatus = pc.getInputStream(); final var readStatus = new BufferedReader(new InputStreamReader(inputStatus))) {
                 while (readStatus.readLine() != null) {
+                    // Drain the buffer sequentially to prevent process deadlocks
                 }
             }
             try {
                 pc.waitFor();
                 pc.destroy();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Playback tracking thread was interrupted", e);
             }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        } catch (final IOException e) {
+            throw new RuntimeException("Failed to initialize system execution pipeline for ffplay", e);
         }
     }
 
