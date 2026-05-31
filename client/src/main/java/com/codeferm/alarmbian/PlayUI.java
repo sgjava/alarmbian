@@ -330,8 +330,8 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     /**
      * Use ffplay to play motion from buffer using start and duration.
      * <p>
-     * Forces the demuxer to ignore missing trailing indexes on active files, strips down analytical look-ahead probing, and
-     * prevents negative timeline values.
+     * Employs verified low-latency argument configurations and hooks native console redirection to prevent internal JVM standard
+     * I/O byte channel blocks.
      * </p>
      *
      * @param fileName Video buffer file.
@@ -342,6 +342,7 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         final var seekStr = formatAbsoluteTime(start);
         final var durationStr = formatAbsoluteTime(duration);
 
+        // 10x Operational Diagnostics
         System.out.printf("%n[PlayUI Diagnostics]%n");
         System.out.printf("  Target File: %s%n", fileName);
         System.out.printf("  Raw Seconds: Start=%d, Duration=%d%n", start, duration);
@@ -353,33 +354,35 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         command.add("ffplay");
         command.add("-autoexit");
 
-        // Pass -ss before input file for fast input-level indexing
+        // Input-level timestamp seek forces container index tracking
         command.add("-ss");
         command.add(seekStr);
 
+        // Timeline limit tracking
         command.add("-t");
         command.add(durationStr);
 
-        // +ignidx: Ignore the missing/incomplete container index entirely
-        // +genpts: Synthesize missing presentation timestamps from raw packets immediately
-        // +nobuffer+fastseek: Drop internal latency queues
+        // Drops look-ahead and analytics buffering
         command.add("-fflags");
-        command.add("+ignidx+genpts+nobuffer+fastseek");
+        command.add("+nobuffer+fastseek");
 
-        // Kill probing overhead entirely so ffplay doesn't stall analyzing active byte streams
-        command.add("-probesize");
-        command.add("32");
-        command.add("-analyzeduration");
-        command.add("0");
-
-        // Use video frame sequencing as master clock anchor
+        // Synchronize timeline master clock to video stream packets
         command.add("-sync");
         command.add("video");
+
+        // Drop frames immediately if storage device channels slip behind rendering clock
         command.add("-framedrop");
+
+        // Disable internal buffer depth constraints
         command.add("-infbuf");
+
+        // Target file path source
         command.add(fileName);
 
         final var pb = new ProcessBuilder(command);
+
+        // Attach process streams directly to system terminal console.
+        // This stops Java from running an overhead loop tracking raw text buffers.
         pb.inheritIO();
 
         try {
@@ -427,7 +430,7 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 final var motionStart = images.get(index).get(0).getEventTime().toInstant();
                 final var motionStop = images.get(index).get(2).getEventTime().toInstant();
 
-                // Guard against negative offsets if motion happens right at segment start
+                // 10x Floor Guard: Prevent negative offsets if motion triggers at the start of a clip
                 var startSeconds = Duration.between(bufferStart, motionStart).minusSeconds(playBefore).getSeconds();
                 if (startSeconds < 0) {
                     startSeconds = 0;
@@ -435,6 +438,7 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
 
                 final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
                 final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
+
                 playFile(fileName, startSeconds, duration.getSeconds());
             }
             case "save" -> {
@@ -442,7 +446,7 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 final var motionStart = images.get(index).get(0).getEventTime().toInstant();
                 final var motionStop = images.get(index).get(2).getEventTime().toInstant();
 
-                // Guard against negative offsets if motion happens right at segment start
+                // 10x Floor Guard: Prevent negative offsets if motion triggers at the start of a clip
                 var startSeconds = Duration.between(bufferStart, motionStart).minusSeconds(playBefore).getSeconds();
                 if (startSeconds < 0) {
                     startSeconds = 0;
