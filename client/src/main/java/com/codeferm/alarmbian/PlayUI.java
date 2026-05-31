@@ -311,10 +311,23 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     }
 
     /**
+     * Converts a primitive seconds count into a standard absolute time string.
+     *
+     * @param totalSeconds The raw offset count in seconds.
+     * @return Formatted absolute timestamp string (hh:mm:ss).
+     */
+    private String formatAbsoluteTime(final long totalSeconds) {
+        final var hours = totalSeconds / 3600;
+        final var minutes = (totalSeconds % 3600) / 60;
+        final var seconds = totalSeconds % 60;
+        return String.format("%02d:%02d:%02d", hours, minutes, seconds);
+    }
+
+    /**
      * Use ffplay to play motion from buffer using start and duration.
      * <p>
-     * Employs advanced streaming low-latency arguments to prevent frame stall and utilizes native terminal stream discarding to
-     * eliminate buffer lockups.
+     * Employs absolute time string formatting to trigger direct metadata index map parsing, bypassing expensive sequential cluster
+     * scanning.
      * </p>
      *
      * @param fileName Video buffer file.
@@ -325,12 +338,16 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         final var command = new ArrayList<String>();
         command.add("ffplay");
         command.add("-autoexit");
+        // Force absolute time tracking (hh:mm:ss) to leverage the container cues index
         command.add("-ss");
-        command.add(String.valueOf(start));
+        command.add(formatAbsoluteTime(start));
+        // Strict duration constraint
         command.add("-t");
-        command.add(String.valueOf(duration));
+        command.add(formatAbsoluteTime(duration));
+        // Drop demuxer queues for immediate look-ahead processing
         command.add("-fflags");
         command.add("+nobuffer+fastseek");
+        // Prioritize video tracking over audio clock sync slips
         command.add("-sync");
         command.add("video");
         command.add("-framedrop");
@@ -338,15 +355,12 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         command.add(fileName);
 
         final var pb = new ProcessBuilder(command);
-
-        // Attach the process directly to the system console, or discard output entirely.
-        // This stops Java from tracking/buffering stderr/stdout text pipes completely.
+        // Bind streams straight to system console to prevent standard I/O pipe lockups
         pb.inheritIO();
 
         try {
             final var pc = pb.start();
             try {
-                // No more blocking readLine loop slowing down the stream cycle!
                 pc.waitFor();
                 pc.destroy();
             } catch (final InterruptedException e) {
