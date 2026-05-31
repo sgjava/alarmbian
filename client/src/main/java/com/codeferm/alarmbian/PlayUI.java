@@ -312,22 +312,26 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
 
     /**
      * Converts a primitive seconds count into a standard absolute time string.
+     * <p>
+     * Ensures absolute positive values are maintained during string generation.
+     * </p>
      *
      * @param totalSeconds The raw offset count in seconds.
      * @return Formatted absolute timestamp string (hh:mm:ss).
      */
     private String formatAbsoluteTime(final long totalSeconds) {
-        final var hours = totalSeconds / 3600;
-        final var minutes = (totalSeconds % 3600) / 60;
-        final var seconds = totalSeconds % 60;
+        final var positiveSeconds = Math.max(0, totalSeconds);
+        final var hours = positiveSeconds / 3600;
+        final var minutes = (positiveSeconds % 3600) / 60;
+        final var seconds = positiveSeconds % 60;
         return String.format("%02d:%02d:%02d", hours, minutes, seconds);
     }
 
     /**
      * Use ffplay to play motion from buffer using start and duration.
      * <p>
-     * Employs absolute time string formatting to leverage container index maps, restricts stream analysis overhead for unfinalized
-     * files, and utilizes native console standard I/O redirection to eliminate JVM thread blocks.
+     * Forces the demuxer to ignore missing trailing indexes on active files, strips down analytical look-ahead probing, and
+     * prevents negative timeline values.
      * </p>
      *
      * @param fileName Video buffer file.
@@ -338,7 +342,6 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         final var seekStr = formatAbsoluteTime(start);
         final var durationStr = formatAbsoluteTime(duration);
 
-        // Dump exact execution bounds to stdout before spawning process
         System.out.printf("%n[PlayUI Diagnostics]%n");
         System.out.printf("  Target File: %s%n", fileName);
         System.out.printf("  Raw Seconds: Start=%d, Duration=%d%n", start, duration);
@@ -350,48 +353,38 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         command.add("ffplay");
         command.add("-autoexit");
 
-        // Absolute time string forces direct cluster seek via metadata index headers
+        // Pass -ss before input file for fast input-level indexing
         command.add("-ss");
         command.add(seekStr);
 
-        // Frame-accurate clip tracking boundary constraint
         command.add("-t");
         command.add(durationStr);
 
-        // Strip out look-ahead queues and prioritize instantaneous index tracking
+        // +ignidx: Ignore the missing/incomplete container index entirely
+        // +genpts: Synthesize missing presentation timestamps from raw packets immediately
+        // +nobuffer+fastseek: Drop internal latency queues
         command.add("-fflags");
-        command.add("+nobuffer+fastseek");
+        command.add("+ignidx+genpts+nobuffer+fastseek");
 
-        // Drop stream probing latency down to bare minimums for unfinalized files
+        // Kill probing overhead entirely so ffplay doesn't stall analyzing active byte streams
         command.add("-probesize");
         command.add("32");
         command.add("-analyzeduration");
         command.add("0");
 
-        // Synchronize master timing to video packets to ignore audio clock slips and drops
+        // Use video frame sequencing as master clock anchor
         command.add("-sync");
         command.add("video");
-
-        // Drop lagging display frames instantly if the Pi rendering thread hits a resource hitch
         command.add("-framedrop");
-
-        // Allocate non-blocking reader queues for local disk array parsing
         command.add("-infbuf");
-
-        // Target source video path
         command.add(fileName);
 
         final var pb = new ProcessBuilder(command);
-
-        // Bind the native process pipes directly to your interactive system console.
-        // This offloads the standard I/O byte overhead from JVM memory buffers, 
-        // provides real-time telemetry view, and permanently prevents process deadlocks.
         pb.inheritIO();
 
         try {
             final var pc = pb.start();
             try {
-                // Non-blocking wait step for the active player window cycle
                 pc.waitFor();
                 pc.destroy();
             } catch (final InterruptedException e) {
@@ -433,21 +426,34 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 final var bufferStart = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
                 final var motionStart = images.get(index).get(0).getEventTime().toInstant();
                 final var motionStop = images.get(index).get(2).getEventTime().toInstant();
-                final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
+
+                // Guard against negative offsets if motion happens right at segment start
+                var startSeconds = Duration.between(bufferStart, motionStart).minusSeconds(playBefore).getSeconds();
+                if (startSeconds < 0) {
+                    startSeconds = 0;
+                }
+
                 final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
                 final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
-                playFile(fileName, start.getSeconds(), duration.getSeconds());
+                playFile(fileName, startSeconds, duration.getSeconds());
             }
             case "save" -> {
                 final var bufferStart = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
                 final var motionStart = images.get(index).get(0).getEventTime().toInstant();
                 final var motionStop = images.get(index).get(2).getEventTime().toInstant();
-                final var start = Duration.between(bufferStart, motionStart).minusSeconds(playBefore);
+
+                // Guard against negative offsets if motion happens right at segment start
+                var startSeconds = Duration.between(bufferStart, motionStart).minusSeconds(playBefore).getSeconds();
+                if (startSeconds < 0) {
+                    startSeconds = 0;
+                }
+
                 final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
                 final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
-                var file = new File(images.get(index).get(1).getEventData().replace("jpg", "mkv"));
-                var saveFileName = file.getName();
-                saveFile(fileName, start.getSeconds(), duration.getSeconds(), String.format("%s%s%s", localPath,
+                final var file = new File(images.get(index).get(1).getEventData().replace("jpg", "mkv"));
+                final var saveFileName = file.getName();
+
+                saveFile(fileName, startSeconds, duration.getSeconds(), String.format("%s%s%s", localPath,
                         File.separator, saveFileName));
             }
             case "events" -> {
