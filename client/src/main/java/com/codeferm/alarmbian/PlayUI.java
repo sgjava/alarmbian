@@ -328,11 +328,7 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     }
 
     /**
-     * Use ffplay to play motion from buffer using start and duration.
-     * <p>
-     * Employs verified low-latency argument configurations and hooks native console redirection to prevent internal JVM standard
-     * I/O byte channel blocks.
-     * </p>
+     * Use ffplay to play motion from buffer using start and duration parameters.
      *
      * @param fileName Video buffer file.
      * @param start Start offset in seconds.
@@ -342,29 +338,52 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         final var seekStr = formatAbsoluteTime(start);
         final var durationStr = formatAbsoluteTime(duration);
 
-        // 10x Operational Diagnostics
-        System.out.printf("%n[PlayUI Diagnostics]%n");
-        System.out.printf("  Target File: %s%n", fileName);
-        System.out.printf("  Raw Seconds: Start=%d, Duration=%d%n", start, duration);
-        System.out.printf("  Seek String: %s (-ss)%n", seekStr);
-        System.out.printf("  Clip Length: %s (-t)%n", durationStr);
-        System.out.printf("  File Exists: %b%n%n", new java.io.File(fileName).exists());
+        // 10x Operational Diagnostics routed through Lombok-injected slf4j logger
+        if (log.isDebugEnabled()) {
+            log.debug("""
+                      PlayUI Diagnostics Execution Context:
+                        Target File: {}
+                        Raw Seconds: Start={}, Duration={}
+                        Seek String: {} (-ss)
+                        Clip Length: {} (-t)
+                        File Exists: {}""",
+                    fileName, start, duration, seekStr, durationStr, new File(fileName).exists());
+        }
 
         final var command = new ArrayList<String>();
         command.add("ffplay");
         command.add("-autoexit");
+        command.add("-window_title");
+        command.add("Alarmbian Event Playback View");
 
-        // Input-level timestamp seek forces container index tracking
+        // 1. PERFORMANCE INJECTION: Drops look-ahead analysis and header inspection depths
+        command.add("-fflags");
+        command.add("+nobuffer+fastseek");
+        command.add("-probesize");
+        command.add("32");
+        command.add("-analyzeduration");
+        command.add("0");
+
+        // 2. BYTE-SEEK INJECTION: Forces raw byte estimation to bypass sequential file scans
+        // Critical for active/incomplete .mkv files missing trailing index cues.
+        command.add("-bytes");
+        command.add("1");
+
+        // 3. CRITICAL POSITIONING: Input Demuxer Seek (Placed BEFORE -i / input filename)
         command.add("-ss");
         command.add(seekStr);
 
-        // Timeline limit tracking
+        // 4. CRITICAL POSITIONING: Demuxer input targets
+        command.add("-i");
+        command.add(fileName);
+
+        // 5. STREAM CONSTRAINTS: Applied to the open demuxer context
         command.add("-t");
         command.add(durationStr);
 
-        // Drops look-ahead and analytics buffering
-        command.add("-fflags");
-        command.add("+nobuffer+fastseek");
+        // Strip sub-streams to prevent hardware device or interface contention
+        command.add("-an");
+        command.add("-sn");
 
         // Synchronize timeline master clock to video stream packets
         command.add("-sync");
@@ -373,11 +392,8 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         // Drop frames immediately if storage device channels slip behind rendering clock
         command.add("-framedrop");
 
-        // Disable internal buffer depth constraints
+        // Disable internal buffer depth constraints to maximize streaming throughput
         command.add("-infbuf");
-
-        // Target file path source
-        command.add(fileName);
 
         final var pb = new ProcessBuilder(command);
 
@@ -386,15 +402,19 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         pb.inheritIO();
 
         try {
+            log.info("Spawning native ffplay instance for file: {}", fileName);
             final var pc = pb.start();
             try {
-                pc.waitFor();
+                final var exitCode = pc.waitFor();
+                log.debug("Native ffplay execution terminated with exit code: {}", exitCode);
                 pc.destroy();
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
+                log.error("Playback tracking thread was interrupted natively", e);
                 throw new RuntimeException("Playback tracking thread was interrupted natively", e);
             }
         } catch (final IOException e) {
+            log.error("Failed to initialize system execution pipeline for ffplay target: {}", fileName, e);
             throw new RuntimeException("Failed to initialize system execution pipeline for ffplay", e);
         }
     }
