@@ -6,6 +6,7 @@ package com.codeferm.alarmbian;
 import com.codeferm.alarmbian.service.EventService;
 import com.codeferm.alarmbian.entity.Event;
 import com.codeferm.alarmbian.image.MatToImage;
+import static com.codeferm.alarmbian.type.EventType.MOTION_INSECT;
 import java.nio.file.FileSystems;
 import java.sql.Timestamp;
 import jakarta.annotation.PostConstruct;
@@ -16,6 +17,7 @@ import org.opencv.core.Mat;
 import org.opencv.core.Scalar;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
@@ -35,6 +37,11 @@ public class MotionHistory {
      */
     @Autowired
     private EventService eventService;
+    /**
+     * Application event publisher to broadcast secondary analysis processing.
+     */
+    @Autowired
+    private ApplicationEventPublisher publisher;
     /**
      * History writer.
      */
@@ -96,7 +103,7 @@ public class MotionHistory {
     /**
      * Receives Mat event of type HISTORY_START.
      *
-     * @param event Mat data.
+     * @final @param event Mat data.
      */
     @EventListener(condition = "#event.eventType.name == 'HISTORY_START'")
     public void onHistoryStart(final EventData<Mat> event) {
@@ -111,7 +118,7 @@ public class MotionHistory {
     /**
      * Receives Mat event of type HISTORY_FRAME.
      *
-     * @param event Mat data.
+     * @final @param event Mat data.
      */
     @EventListener(condition = "#event.eventType.name == 'HISTORY_FRAME'")
     public void onHistoryFrame(final EventData<Mat> event) {
@@ -120,16 +127,21 @@ public class MotionHistory {
     }
 
     /**
-     * Receives Mat event of type HISTORY_FRAME.
+     * Receives Mat event of type HISTORY_STOP. Persists the base event, then publishes the saved entity payload for downstream
+     * insect filtering.
      *
-     * @param event Mat data.
+     * @final @param event Mat data.
      */
     @EventListener(condition = "#event.eventType.name == 'HISTORY_STOP'")
     public void onHistoryStop(final EventData<Mat> event) {
         // Bitwise OR with black and white motion image
         Core.bitwise_or(historyWriter.getMat(), event.getData(), historyWriter.getMat());
         final var fileName = historyWriter.saveHistoryImage(event);
-        // Save off event
-        eventService.create(new Event(deviceName, event.getEventType().name(), fileName, Timestamp.from(event.getTimestamp())));
+
+        // Save base event and capture the resulting database entity instance (populated PK ID)
+        final var dbEvent = eventService.create(new Event(deviceName, event.getEventType().name(), fileName, Timestamp.from(event.getTimestamp())));
+
+        // Asynchronously broadcast the saved entity to our tracking analyzer pipeline
+        publisher.publishEvent(new EventData<>(MOTION_INSECT, event.getTimestamp(), dbEvent));
     }
 }
