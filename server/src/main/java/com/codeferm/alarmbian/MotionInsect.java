@@ -14,19 +14,26 @@ import org.opencv.core.MatOfPoint;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Consumes asynchronous MOTION_INSECT event payloads to execute trajectory verification. Decodes history maps back into native
- * matrices, calculates geometric tracking paths, and modifies persisted Event taxonomy records if insect activity signatures are
- * validated.
+ * Consumes asynchronous MOTION_INSECT event payloads to execute trajectory verification. Evaluates geometric contour shapes to
+ * isolate close-proximity insect streaks from vehicle passes. Gated globally to execute exclusively during dusk-to-dawn hours to
+ * conserve edge compute.
  *
  * @author Steven P. Goldsmith
- * @version 1.0.0
+ * @version 1.0.2
  * @since 1.0.0
  */
 @Component
+@ConditionalOnProperty(
+        prefix = "alarmbian.insect",
+        name = "enabled",
+        havingValue = "true",
+        matchIfMissing = true
+)
 @Slf4j
 public class MotionInsect {
 
@@ -37,11 +44,14 @@ public class MotionInsect {
     private EventService eventService;
 
     /**
-     * Receives Event data entity payload to perform structural contour metrics validation.
+     * Receives Event data entity payload to perform structural contour metrics validation. Gated globally via SpEL condition to run
+     * exclusively between 19:00 (7 PM) and 06:00 (6 AM).
      *
      * @final @param event EventData payload wrapping our target Event entity record.
      */
-    @EventListener(condition = "#event.eventType.name == 'MOTION_INSECT'")
+    @EventListener(condition = "#event.eventType.name == 'MOTION_INSECT' && "
+            + "(T(java.time.LocalTime).now().isAfter(T(java.time.LocalTime).of(19, 0)) || "
+            + " T(java.time.LocalTime).now().isBefore(T(java.time.LocalTime).of(6, 0)))")
     public void onMotionInsect(final EventData<Event> event) {
         final var dbEvent = event.getData();
         if (dbEvent == null) {
@@ -49,7 +59,6 @@ public class MotionInsect {
             return;
         }
 
-        // Extracted file path from the generic eventData column property
         final var filePath = dbEvent.getEventData();
         if (filePath == null || filePath.isBlank()) {
             log.error(String.format("Event row ID %d contains an empty or unassigned eventData target path.", dbEvent.getId()));
@@ -58,21 +67,18 @@ public class MotionInsect {
 
         log.debug(String.format("Asynchronous contour analysis verification initiated for path: %s", filePath));
 
-        // Read saved history tracking snapshot back out of our local disk loop in grayscale
         final var historyMat = Imgcodecs.imread(filePath, Imgcodecs.IMREAD_GRAYSCALE);
         if (historyMat.empty()) {
             log.error(String.format("Failed to process history snapshot matrix boundary from target: %s", filePath));
             return;
         }
 
-        // HistoryWriter executes Core.bitwise_not prior to writing a file out to make it look like an ignore mask canvas.
-        // We invert it back to standard white vectors on a black backdrop for contour parsing.
+        // Invert to white vectors on a black backdrop for contour parsing
         Core.bitwise_not(historyMat, historyMat);
 
         final var contours = new ArrayList<MatOfPoint>();
         final var hierarchy = new Mat();
 
-        // Query external tracking paths out of our working buffer
         Imgproc.findContours(historyMat, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
 
         var humanOrVehicleDetected = false;
@@ -81,7 +87,7 @@ public class MotionInsect {
         for (final var contour : contours) {
             final var area = Imgproc.contourArea(contour);
 
-            // 1. Immediately ignore structural compression jitter or pixel noise floor artifacts
+            // Ignore minor structural compression jitter or pixel noise floor artifacts
             if (area < 20.0) {
                 continue;
             }
@@ -90,31 +96,37 @@ public class MotionInsect {
             final var width = (double) boundingRect.width;
             final var height = (double) boundingRect.height;
 
-            // Calculate elongation factor bounds
             final var maxDim = Math.max(width, height);
             final var minDim = Math.min(width, height);
             final var aspectRatio = maxDim / minDim;
 
             if (log.isDebugEnabled()) {
-                log.debug(String.format("Contour Node -> Mass Area: %.2f, W: %.2f, H: %.2f, Aspect Ratio: %.2f",
+                log.debug(String.format("Contour Node -> Mass Area: %.2f, W: %.2f, H: %.2f, Ratio: %.2f",
                         area, width, height, aspectRatio));
             }
 
-            // 2. Insect Indicator Signature A: Blurry lens blobs (Small bounding layout metrics)
+            // 1. Genuine Target Profile A: Compact physical objects (Humans, Animals close up)
+            final var isCompactTarget = area > 180.0 && aspectRatio < 4.0;
+
+            // 2. Genuine Target Profile B: Massive multi-segment objects (Vehicles traversing background)
+            // Approved because background cars yield large, broken tracking blocks with high aspect ratios
+            final var isVehicleTarget = area > 4500.0 && aspectRatio >= 4.0;
+
+            if (isCompactTarget || isVehicleTarget) {
+                humanOrVehicleDetected = true;
+                break;
+            }
+
+            // 3. Insect Indicator Signature A: Blurry lens blobs (Small bounding layouts)
             final var isSmallBlob = width < 35.0 && height < 35.0;
 
-            // 3. Insect Indicator Signature B: Rapid IR linear flight tracks (Elongated paths with small mass areas)
-            final var isBugStreak = aspectRatio > 4.5 && area < 1000.0;
+            // 4. Insect Indicator Signature B: Rapid close-up IR linear flight tracks
+            // Lifted area threshold to 3500.0 to safely capture massive solid bright bug smears near the lens
+            final var isBugStreak = aspectRatio > 4.5 && area < 3500.0;
 
             if (isSmallBlob || isBugStreak) {
                 insectDetected = true;
                 continue;
-            }
-
-            // 4. Genuine Target Profile: Large unified object footprint within lower aspect ratios
-            if (area > 180.0 && aspectRatio < 4.0) {
-                humanOrVehicleDetected = true;
-                break; // A single validated human/vehicle trajectory approves the entire sequence
             }
         }
 
@@ -124,7 +136,6 @@ public class MotionInsect {
         } else if (insectDetected) {
             log.info(String.format("Event %d verified: Classified as insect trail. Altering database classification taxonomy...", dbEvent.getId()));
 
-            // Reclassify event type token to MOTION_INSECT and update database
             dbEvent.setEventType(MOTION_INSECT.name());
             eventService.update(dbEvent);
             log.info(String.format("Database event row ID %d updated successfully to type: MOTION_INSECT", dbEvent.getId()));
@@ -132,7 +143,7 @@ public class MotionInsect {
             log.info(String.format("Event %d verified: Classified as static noise floor or micro environmental movement.", dbEvent.getId()));
         }
 
-        // Strict Native Environment Memory Safety: Release C++ descriptors explicitly
+        // Native Environment Memory Safety: Release C++ descriptors explicitly
         hierarchy.release();
         for (final var contour : contours) {
             contour.release();
