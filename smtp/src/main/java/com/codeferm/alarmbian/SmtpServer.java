@@ -25,6 +25,8 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -38,156 +40,83 @@ import org.springframework.stereotype.Component;
 /**
  * Local SMTP server to ingest smart hardware camera event notifications.
  * <p>
- * This broker intercepts camera email triggers, parses device identifiers and
- * externalized target classifications, isolates binary payloads, and persists
- * records natively.
+ * Intercepts incoming hardware email notifications, isolates video/image attachments, and routes binaries dynamically using strict,
+ * explicit per-camera storage maps.
  * </p>
  *
  * @author Steven P. Goldsmith
- * @version 1.1.0
+ * @version 1.2.5
  * @since 1.0.0
  */
 @Component
 @Slf4j
 public class SmtpServer {
 
-    /**
-     * Network interface address to bind the SMTP receptor.
-     */
     @Value("${smtp.bind}")
     private String bind;
 
-    /**
-     * Active network port for incoming mail listening.
-     */
     @Value("${smtp.port}")
     private Integer port;
-    
-    /**
-     * Active network port for incoming mail listening.
-     */
-    @Value("${smtp.start.timeout}")
-    private Long startTimeout;    
 
-    /**
-     * Thread sleep threshold in milliseconds when awaiting message sweeps.
-     */
+    @Value("${smtp.start.timeout}")
+    private Long startTimeout;
+
     @Value("${wait}")
     private Long wait;
 
-    /**
-     * Pattern layout for generating dynamic output sub-directories.
-     */
     @Value("${dir.pattern}")
     private String dirPattern;
 
-    /**
-     * Account security username for internal user authentication profiles.
-     */
     @Value("${smtp.user}")
     private String user;
 
-    /**
-     * Account security password credential for internal user authentication.
-     */
     @Value("${smtp.password}")
     private String password;
 
-    /**
-     * Root routing electronic mail address rule target.
-     */
     @Value("${smtp.email}")
     private String email;
 
-    /**
-     * Maximum capacity bounds for the processing fixed worker pool threads.
-     */
     @Value("${smtp.threads}")
     private Integer threads;
 
-    /**
-     * File naming pattern syntax applied to binary file outputs.
-     */
     @Value("${file.pattern}")
     private String filePattern;
 
-    /**
-     * Log time visual string pattern schema mapping.
-     */
     @Value("${log.pattern}")
     private String logPattern;
 
     /**
-     * Root filesystem branch destination where media payloads write.
+     * Array configuration mappings populated directly from properties. Format: cameraName:targetBaseDirectory
      */
-    @Value("${output.path}")
-    private String outputPath;
+    @Value("${output.camera.paths:}")
+    private String[] cameraPathMappings;
 
-    /**
-     * Array of regular expression strings designed to pull device tags from
-     * text blocks.
-     */
     @Value("${device.regex}")
     private String[] deviceRegex;
 
-    /**
-     * Injected token-to-event key-value configurations from application
-     * properties. Example: people:SMTP_PEOPLE, vehicle:SMTP_VEHICLE
-     */
     @Value("${smtp.classifier.mappings}")
     private String[] classifierMappings;
 
-    /**
-     * Temporal folder dynamic destination structure mask formatter.
-     */
     private DateTimeFormatter dirFormatter;
-
-    /**
-     * Media file storage descriptor string mask formatter.
-     */
     private DateTimeFormatter fileFormatter;
-
-    /**
-     * Internal terminal text log date-time visualization mask formatter.
-     */
     private DateTimeFormatter logFormatter;
 
-    /**
-     * Control gate tracking runtime termination requests.
-     */
     private final AtomicBoolean shutDown = new AtomicBoolean(false);
-
-    /**
-     * Background concurrent work thread manager boundary pool execution runner.
-     */
     private ExecutorService executorService;
 
-    /**
-     * Persistence execution utility providing native relational state
-     * management database interactions.
-     */
     @Autowired
     private EventService eventService;
 
-    /**
-     * Safe rolling reference index provider feeding dedicated thread
-     * identification identities.
-     */
     private final AtomicLong threadCounter = new AtomicLong(0);
-
-    /**
-     * Isolated micro-server process pipeline anchor interface instance.
-     */
     private GreenMail greenMail;
 
     /**
+     * Core map cache containing hard literal base paths matched to specific device names.
+     */
+    private final Map<String, String> cameraPathMap = new HashMap<>();
+
+    /**
      * Starts and provisions the localized SMTP listener framework context.
-     * <p>
-     * Applies an extended startup timeout parameter to the low-level server
-     * setup configuration context to allow successful socket bindings on
-     * slower, high-latency, or deeply resource-constrained underlying embedded
-     * runtime infrastructures.
-     * </p>
      */
     @PostConstruct
     public void start() {
@@ -199,9 +128,27 @@ public class SmtpServer {
             });
             return t;
         });
+
         logFormatter = DateTimeFormatter.ofPattern(logPattern).withZone(ZoneId.systemDefault());
         dirFormatter = DateTimeFormatter.ofPattern(dirPattern).withZone(ZoneId.systemDefault());
         fileFormatter = DateTimeFormatter.ofPattern(filePattern).withZone(ZoneId.systemDefault());
+
+        // Parse literal destination parameters directly into runtime lookups
+        if (cameraPathMappings != null) {
+            for (final var mapping : cameraPathMappings) {
+                if (mapping == null || mapping.isBlank()) {
+                    continue;
+                }
+                final var parts = mapping.split(":", 2);
+                if (parts.length == 2) {
+                    final var camKey = parts[0].trim().toLowerCase();
+                    final var rootPath = parts[1].trim();
+                    cameraPathMap.put(camKey, rootPath);
+                    log.info(String.format("Registered strict camera route: %s -> %s", camKey, rootPath));
+                }
+            }
+        }
+
         final var setup = new ServerSetup(port, bind, ServerSetup.PROTOCOL_SMTP);
         setup.setServerStartupTimeout(startTimeout);
         greenMail = new GreenMail(setup);
@@ -216,8 +163,7 @@ public class SmtpServer {
     }
 
     /**
-     * Shuts down processing pools and detaches network server listeners
-     * gracefully.
+     * Shuts down processing pools and detaches network server listeners gracefully.
      */
     @PreDestroy
     public void stop() {
@@ -230,15 +176,6 @@ public class SmtpServer {
         log.info("SMTP server stopped");
     }
 
-    /**
-     * Locates the first regex match inside text data, pulling standard group
-     * contents cleanly.
-     *
-     * @param input Raw character context targeted for evaluation loops.
-     * @param regex Search pattern syntax configuration framework.
-     * @return Matched string value result, or null if boundaries match empty
-     * arrays.
-     */
     public String findFirstMatch(final String input, final String regex) {
         if (input == null || regex == null) {
             return null;
@@ -255,15 +192,6 @@ public class SmtpServer {
         return null;
     }
 
-    /**
-     * Evaluates text fields to find custom registered hardware camera system
-     * IDs.
-     *
-     * @param input Context line segment extracted from headers or document
-     * parts.
-     * @return Discovered machine name string, or null if tracking profiles
-     * mismatch.
-     */
     public String parseDeviceName(final String input) {
         var deviceName = (String) null;
         var regexIndex = 0;
@@ -273,17 +201,6 @@ public class SmtpServer {
         return deviceName;
     }
 
-    /**
-     * Scans textual fields to resolve hardware classifications using
-     * configuration rules.
-     * <p>
-     * Iterates through the properties matrix tokens to match sub-strings,
-     * defaulting immediately to a standard fallback motion event if unmatched.
-     * </p>
-     *
-     * @param input Message subject line or body text segments.
-     * @return Resolved EventType tag classification.
-     */
     public EventType parseEventType(final String input) {
         if (input == null || classifierMappings == null) {
             return EventType.SMTP_MOTION;
@@ -297,7 +214,6 @@ public class SmtpServer {
                 final var token = parts[0].trim().toLowerCase();
                 final var enumName = parts[1].trim();
 
-                // Use word boundary check to prevent false positives (e.g., "vehicle" matching "no-vehicle")
                 if (lowercaseInput.matches(".*\\b" + Pattern.quote(token) + "\\b.*")) {
                     try {
                         return EventType.valueOf(enumName);
@@ -311,12 +227,6 @@ public class SmtpServer {
         return EventType.SMTP_MOTION;
     }
 
-    /**
-     * Isolates mail elements asynchronously to parse headers and branch
-     * multipart objects.
-     *
-     * @param message Mail item context targeted for structural decomposition.
-     */
     public void processMessage(final MimeMessage message) {
         executorService.submit(() -> {
             try {
@@ -349,17 +259,6 @@ public class SmtpServer {
         });
     }
 
-    /**
-     * Loops across internal attachment payloads to extract nested document
-     * trees.
-     *
-     * @param message Mail item entity context.
-     * @param multipart Element collection layout boundary components.
-     * @param deviceName Identity token of the originating equipment node.
-     * @param eventType Determined target object classification status.
-     * @throws MessagingException Error passing elements over mail protocols.
-     * @throws IOException Error handling internal frame stream pipelines.
-     */
     public void processMultipart(final MimeMessage message, final Multipart multipart, final String deviceName, final EventType eventType) throws
             MessagingException, IOException {
         var devName = deviceName;
@@ -384,24 +283,30 @@ public class SmtpServer {
     }
 
     /**
-     * Commits incoming files to disk branches and registers an immutable
-     * classification database record.
-     *
-     * @param message Mail item data container.
-     * @param part Extracted component element containing raw binary blocks.
-     * @param index Position counter index within tracking multipart layers.
-     * @param deviceName Machine label associated with active alerts.
-     * @param eventType Determined semantic event category context tag.
+     * Commits incoming attachments directly to literal paths declared inside setup configurations. Rejects executions immediately
+     * if an incoming camera identifier lacks an explicit path rule mapping.
      */
     public void saveAttachment(final MimeMessage message, final Part part, final int index, final String deviceName, final EventType eventType) {
         if (deviceName == null) {
             log.error("Device name is null, cannot save attachment.");
             return;
         }
+
+        final var targetCameraKey = deviceName.trim().toLowerCase();
+        final var resolvedRootPath = cameraPathMap.get(targetCameraKey);
+
+        // Reject tracking completely if the camera lacks a literal property constraint definition
+        if (resolvedRootPath == null) {
+            log.warn(String.format("Rejecting attachment save: No literal path mapping configured for camera '%s'.", deviceName));
+            return;
+        }
+
         try {
             final var receivedDate = message.getReceivedDate();
             final var instant = (receivedDate != null) ? receivedDate.toInstant() : Instant.now();
-            final var devicePath = Path.of(outputPath, deviceName, dirFormatter.format(instant));
+
+            // Assembles direct explicit targets: [literalPath]/[deviceName]/[MMddyyyy]
+            final var devicePath = Path.of(resolvedRootPath, deviceName, dirFormatter.format(instant));
 
             Files.createDirectories(devicePath);
 
@@ -428,10 +333,6 @@ public class SmtpServer {
         }
     }
 
-    /**
-     * Loops continuous verification scans watching for incoming greenMail
-     * transactions.
-     */
     public void run() {
         log.info("Waiting for incoming email...");
         while (!shutDown.get()) {
