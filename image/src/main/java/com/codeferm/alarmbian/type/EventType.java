@@ -91,9 +91,5 @@ public enum EventType {
     /**
      * Smart camera edge-side AI classification tracking an animal, domestic pet, or wildlife.
      */
-    SMTP_ANIMAL,
-    /**
-     * Motion pixel analysis identifying flying insects or localized environmental noise near an infrared source.
-     */
-    MOTION_INSECT
+    SMTP_ANIMAL
 }
