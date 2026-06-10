@@ -5,6 +5,7 @@ package com.codeferm.alarmbian;
 
 import com.codeferm.alarmbian.service.EventService;
 import com.codeferm.alarmbian.entity.Event;
+import com.codeferm.alarmbian.type.EventType;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -12,15 +13,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * Alarmbian playback management logic. Handles chronological timeline collation, video file mapping, and cross-boundary video asset
- * tracking by examining filename payloads instead of relying on a non-existent video enum.
+ * Alarmbian playback management logic. Handles chronological timeline collation, video file mapping, and SMTP sequence conversion
+ * boundaries.
  *
  * @author Steven P. Goldsmith
  * @version 1.0.0
@@ -56,212 +56,195 @@ public class Play {
     private Integer playAfter;
 
     /**
-     * Explicit start timestamp override string (format: yyyy-MM-dd HH:mm:ss).
+     * Managed SMTP classification types populated straight from system properties.
      */
+    @Value("#{'${smtp.ui.types}'.split(',')}")
     @Getter
-    @Setter
-    private String manualStartTimestamp;
+    private List<String> smtpUiTypes;
 
     /**
-     * Explicit playback duration length in seconds.
+     * Standard hardware motion sequence tokens.
      */
-    @Getter
-    @Setter
-    private Integer manualLength;
+    private final String[] motionEvents = new String[]{"MOTION_START", "HISTORY_STOP", "MOTION_STOP"};
 
     /**
-     * Find all video files that overlap with a requested absolute timestamp window. This serves as the data availability validation
-     * layer.
+     * Format timestamp to a standardized human readable format string.
      *
-     * @param targetStart Target start timestamp.
-     * @param durationSec Requested video duration in seconds.
-     * @return Chronologically sorted list of matching video files intersecting the window.
+     * @param timestamp System source timestamp record.
+     * @return Formatted localized representation.
      */
-    public List<Event> findOverlappingVideos(final Timestamp targetStart, final int durationSec) {
-        final var targetEnd = new Timestamp(targetStart.getTime() + (durationSec * 1000L));
-        final var allVideos = findVideos();
-        final var matchingVideos = new ArrayList<Event>();
+    public String formatTimestamp(final Timestamp timestamp) {
+        return String.format("%1$TD %1$Tr", timestamp);
+    }
 
-        for (final var video : allVideos) {
-            final var videoStart = extractStartTimeFromFilename(video.getEventData());
-            final var videoDuration = extractDurationFromFilename(video.getEventData());
+    /**
+     * Calculate and display chronological window delta using HH:MM:SS format notation.
+     *
+     * @param start Lower bound timestamp mark.
+     * @param end Upper bound timestamp mark.
+     * @return Formatted duration interval metric string.
+     */
+    public String formatDuration(final Timestamp start, final Timestamp end) {
+        final var seconds = Duration.between(start.toInstant(), end.toInstant()).toSeconds();
+        return String.format("%02d:%02d:%02d", seconds / 3600, (seconds % 3600) / 60, (seconds % 60));
+    }
 
-            if (videoStart != null && videoDuration != null) {
-                final var videoEnd = new Timestamp(videoStart.getTime() + videoDuration.toMillis());
+    /**
+     * Retrieve hardware motion sequence logs bound by target device configurations.
+     *
+     * @return Unfiltered source database entity list records.
+     */
+    public List<Event> findMotionEvents() {
+        return eventService.findMotionEvents(deviceName);
+    }
 
-                // Evaluate explicit intersecting temporal boundaries
-                if (!videoStart.after(targetEnd) && !videoEnd.before(targetStart)) {
-                    matchingVideos.add(video);
+    /**
+     * Map sequence tracking blocks confirming alignment integrity across metrics.
+     *
+     * @return Structured lists containing standardized multi-event frame arrays.
+     */
+    public List<List<Event>> loadMotionEvents() {
+        final var list = findMotionEvents();
+        final var images = new ArrayList<List<Event>>();
+        var subList = new ArrayList<Event>();
+        var subListSeq = 0;
+
+        for (final var events : list) {
+            if (events.getEventType().equals(motionEvents[subListSeq])) {
+                subList.add(events);
+                if (subListSeq == 2) {
+                    images.add(subList);
+                    subList = new ArrayList<Event>();
+                    subListSeq = 0;
+                } else {
+                    subListSeq++;
                 }
-            }
-        }
-        // Enforce chronological sorting sequence
-        matchingVideos.sort((v1, v2) -> v1.getEventTime().compareTo(v2.getEventTime()));
-        return matchingVideos;
-    }
-
-    /**
-     * Create composite image mappings based on relative overlap tracking thresholds. Identifies video source assets by validating
-     * file paths rather than an explicit enum state.
-     *
-     * @param events Chronological collection list.
-     * @return Transformed lookup collection mapping.
-     */
-    public Map<String, List<Event>> createImagesMap(final List<Event> events) {
-        final var map = new HashMap<String, List<Event>>();
-        for (final var event : events) {
-            // Identify physical recording rows by scanning data payloads for standard video extensions
-            if (event.getEventData() != null && event.getEventData().endsWith(".mkv")) {
-                map.put(event.getEventData(), new ArrayList<>());
-            }
-        }
-        for (final var event : events) {
-            if (event.getEventData() == null || !event.getEventData().endsWith(".mkv")) {
-                for (final var videoFile : map.keySet()) {
-                    if (isWithinVideo(event, videoFile)) {
-                        map.get(videoFile).add(event);
-                    }
-                }
-            }
-        }
-        return map;
-    }
-
-    /**
-     * Evaluate if a tracking transmission overlaps an existing video segment.
-     *
-     * @param smtp Event tracking metadata block.
-     * @param videoFile Physical recording identity link.
-     * @return True if collision threshold is confirmed.
-     */
-    public boolean isWithinVideo(final Event smtp, final String videoFile) {
-        final var videoStartTime = extractStartTimeFromFilename(videoFile);
-        final var videoDuration = extractDurationFromFilename(videoFile);
-        if (videoStartTime == null || videoDuration == null) {
-            return false;
-        }
-        final var videoEndTime = new Timestamp(videoStartTime.getTime() + videoDuration.toMillis());
-        final var smtpTime = smtp.getEventTime();
-        final var startBoundary = new Timestamp(videoStartTime.getTime() - playBefore * 1000);
-        final var endBoundary = new Timestamp(videoEndTime.getTime() + playAfter * 1000);
-        return smtpTime.after(startBoundary) && smtpTime.before(endBoundary);
-    }
-
-    /**
-     * Convert filesystem notation sequences to clean timestamp representations.
-     *
-     * @param filename Target operational layout tracking string.
-     * @return Parsed timestamp instance.
-     */
-    public Timestamp extractStartTimeFromFilename(final String filename) {
-        try {
-            final var baseName = filename.substring(filename.lastIndexOf('/') + 1);
-            final var parts = baseName.split("_");
-            if (parts.length >= 2) {
-                final var timestampStr = parts[0] + " " + parts[1].replace('-', ':');
-                return Timestamp.valueOf(timestampStr);
-            }
-        } catch (final Exception e) {
-            log.error("Failed to extract start time from filename: {}", filename, e);
-        }
-        return null;
-    }
-
-    /**
-     * Parse system filename intervals to generate accurate length intervals.
-     *
-     * @param filename Target operational layout tracking string.
-     * @return Length duration asset.
-     */
-    public Duration extractDurationFromFilename(final String filename) {
-        try {
-            final var baseName = filename.substring(filename.lastIndexOf('/') + 1);
-            final var parts = baseName.split("_");
-            if (parts.length >= 3) {
-                final var secondsStr = parts[2].split("\\.")[0];
-                return Duration.ofSeconds(Long.parseLong(secondsStr));
-            }
-        } catch (final Exception e) {
-            log.error("Failed to extract duration from filename: {}", filename, e);
-        }
-        return null;
-    }
-
-    /**
-     * Execute localized matrix assembly loops to convert recording chunks into visible image arrays.
-     *
-     * @param images Output accumulator target map.
-     * @param video Core event parent block.
-     * @param smtp Subordinate signal packet.
-     */
-    public void createAndAddEvents(final Map<Long, List<Event>> images, final Event video, final Event smtp) {
-        final var videoStart = extractStartTimeFromFilename(video.getEventData());
-        if (videoStart != null) {
-            final var offsetMillis = smtp.getEventTime().getTime() - videoStart.getTime();
-            final var frameNumber = (offsetMillis / 1000) * 10;
-            images.computeIfAbsent(frameNumber, k -> new ArrayList<>()).add(smtp);
-        }
-    }
-
-    /**
-     * Collate parallel active timeline tracks into unified, indexed execution blocks.
-     *
-     * @param images Output frame reference target map.
-     * @param videos File system descriptor tracks.
-     * @param smtps Network alert tracking frames.
-     * @param boundaryTime Upper threshold limits.
-     * @return Populated operational index map.
-     */
-    public Map<Long, List<Event>> processEvents(final Map<Long, List<Event>> images, final List<Event> videos, final List<Event> smtps, final Timestamp boundaryTime) {
-        final var imagesMap = createImagesMap(combineAndSort(videos, smtps));
-        for (final var entry : imagesMap.entrySet()) {
-            final var currentVideo = findVideoEvent(videos, entry.getKey());
-            if (currentVideo == null) {
-                continue;
-            }
-            final var events = entry.getValue();
-            var eventsIndex = 0;
-            while (eventsIndex < events.size()) {
-                final var currentSmtp = events.get(eventsIndex);
-                if (boundaryTime != null && !currentSmtp.getEventTime().before(boundaryTime)) {
-                    break;
-                }
-                createAndAddEvents(images, currentVideo, currentSmtp);
-                eventsIndex++;
+            } else {
+                log.warn(String.format("Event %d %s out of sequence, expected %s, but got %s", events.getId(),
+                        formatTimestamp(events.getEventTime()), motionEvents[subListSeq], events.getEventType()));
             }
         }
         return images;
     }
 
     /**
-     * Combine two lists of events and sort them chronologically.
+     * Extract active background video storage frames associated with target operations.
      *
-     * @param list1 First event list.
-     * @param list2 Second event list.
-     * @return Chronologically sorted master list.
+     * @return Array collection of tracking entries.
      */
-    private List<Event> combineAndSort(final List<Event> list1, final List<Event> list2) {
-        final var combined = new ArrayList<Event>(list1.size() + list2.size());
-        combined.addAll(list1);
-        combined.addAll(list2);
-        combined.sort((e1, e2) -> e1.getEventTime().compareTo(e2.getEventTime()));
-        return combined;
+    public List<Event> findBuffers() {
+        return eventService.findBuffers(deviceName);
     }
 
     /**
-     * Find a video event matching a specific filename data payload token.
+     * Construct lookup mappings referencing tracking files linked directly to storage assets.
      *
-     * @param videos Video track candidate items.
-     * @param filename Target matching string token.
-     * @return Matching event block, or null if missing.
+     * @return Unique filename-to-entity reference dictionary object.
      */
-    private Event findVideoEvent(final List<Event> videos, final String filename) {
-        for (final var video : videos) {
-            if (video.getEventData().equals(filename)) {
-                return video;
+    public Map<String, Event> loadMotionBuffers() {
+        final var list = findBuffers();
+        final var buffers = new HashMap<String, Event>();
+        list.forEach(events -> {
+            buffers.put(events.getEventData(), events);
+        });
+        return buffers;
+    }
+
+    /**
+     * Pull database list markers for targeted system files.
+     *
+     * @return Target file logs array map.
+     */
+    public List<Event> findMotionFiles() {
+        return eventService.findMotionFiles(deviceName);
+    }
+
+    /**
+     * Fabricate simulated three-part tracking frameworks for raw standalone SMTP elements.
+     *
+     * @param images Output multi-tier event configuration collection.
+     * @param start Base video sequence marker context.
+     * @param smtpEvent Raw source image transmission log token.
+     */
+    public void createAndAddEvents(final List<List<Event>> images, final Event start, final Event smtpEvent) {
+        final var subList = new ArrayList<Event>();
+        subList.add(new Event(start.getDeviceName(), EventType.MOTION_START.name(), start.getEventData(),
+                Timestamp.from(smtpEvent.getEventTime().toInstant().minusSeconds(playBefore))));
+        subList.add(new Event(start.getDeviceName(), EventType.HISTORY_STOP.name(), smtpEvent.getEventData(),
+                Timestamp.from(smtpEvent.getEventTime().toInstant().plusSeconds(playAfter))));
+        subList.add(new Event(start.getDeviceName(), EventType.MOTION_STOP.name(), start.getEventData(),
+                Timestamp.from(smtpEvent.getEventTime().toInstant().plusSeconds(playAfter))));
+        images.add(subList);
+    }
+
+    /**
+     * Map SMTP tracking frames across multi-file recording intervals using the default configuration type. Resolves timeline
+     * processing issues when hardware files miss explicit stop tokens.
+     *
+     * @return Normalized tracking records arranged chronologically.
+     */
+    public List<List<Event>> loadSmtpMotionEvents() {
+        final var targetType = (smtpUiTypes == null || smtpUiTypes.isEmpty()) ? "SMTP_%" : smtpUiTypes.get(0);
+        return loadSmtpMotionEvents(targetType);
+    }
+
+    /**
+     * Map SMTP tracking frames across multi-file recording intervals using a dynamic relational type constraint. Resolves timeline
+     * processing issues when hardware files miss explicit stop tokens.
+     *
+     * @param eventType The specific enum classification type token or wildcard pattern to restrict rows by.
+     * @return Normalized tracking records arranged chronologically.
+     */
+    public List<List<Event>> loadSmtpMotionEvents(final String eventType) {
+        final var videos = findVideos();
+        final var events = findSmtpMotionEvents(eventType);
+        final var images = new ArrayList<List<Event>>();
+
+        if (videos.isEmpty() || events.isEmpty()) {
+            return images;
+        }
+
+        var eventsIndex = 0;
+
+        // Linear state process through sequential video timeline tracking rows
+        for (var i = 0; i < videos.size(); i++) {
+            final var currentVideo = videos.get(i);
+
+            if (!currentVideo.getEventType().equals("RECORD_START")) {
+                continue;
+            }
+
+            // Map upper temporal limits for tracking boundaries based on next entry data
+            var boundaryTime = (Timestamp) null;
+            if (i + 1 < videos.size()) {
+                final var nextTrack = videos.get(i + 1);
+                boundaryTime = nextTrack.getEventTime();
+
+                // If it is an explicit stop event matching this video container context, consume it
+                if (nextTrack.getEventType().equals("RECORD_STOP") && currentVideo.getEventData().equals(nextTrack.getEventData())) {
+                    i++;
+                }
+            }
+
+            // Advance over lingering SMTP records logged prior to the current capture timeline window
+            while (eventsIndex < events.size() && events.get(eventsIndex).getEventTime().before(currentVideo.getEventTime())) {
+                eventsIndex++;
+            }
+
+            // Collate all raw SMTP items falling cleanly inside this recording container bracket
+            while (eventsIndex < events.size()) {
+                final var currentSmtp = events.get(eventsIndex);
+
+                // Stop evaluation if matching entry breaches active timeline limits
+                if (boundaryTime != null && !currentSmtp.getEventTime().before(boundaryTime)) {
+                    break;
+                }
+
+                createAndAddEvents(images, currentVideo, currentSmtp);
+                eventsIndex++;
             }
         }
-        return null;
+        return images;
     }
 
     /**
@@ -280,5 +263,15 @@ public class Play {
      */
     public List<Event> findSmtpMotionEvents() {
         return eventService.findSmtpMotionEvents(deviceName, "SMTP_%");
+    }
+
+    /**
+     * Extract raw standalone tracking transmissions arriving from external hardware using an exact query restriction token.
+     *
+     * @param eventType The dynamic SQL restriction token (e.g., "SMTP_VEHICLE", "SMTP_%").
+     * @return SMTP operational dataset list matching the specified constraint boundary.
+     */
+    public List<Event> findSmtpMotionEvents(final String eventType) {
+        return eventService.findSmtpMotionEvents(deviceName, eventType);
     }
 }
