@@ -11,7 +11,6 @@ import de.milchreis.uibooster.model.Form;
 import de.milchreis.uibooster.model.FormElement;
 import de.milchreis.uibooster.model.FormElementChangeListener;
 import de.milchreis.uibooster.model.UiBoosterOptions;
-import de.milchreis.uibooster.model.formelements.SelectionFormElement;
 import de.milchreis.uibooster.model.formelements.TextFormElement;
 import java.awt.Font;
 import java.awt.image.BufferedImage;
@@ -20,6 +19,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.time.Duration;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -52,96 +52,96 @@ import picocli.CommandLine.Command;
 public class PlayUI implements Callable<Integer>, FormElementChangeListener {
 
     /**
-     * Play logic.
+     * Play logic reference context.
      */
     @Autowired
     private Play play;
     /**
-     * UI Booster.
+     * UI Booster window orchestrator.
      */
     private final UiBooster booster;
     /**
-     * Image index.
+     * Image index offset.
      */
     private int index = 0;
     /**
-     * List of motion start/stop and history stop.
+     * Collation collection mapping sequential events.
      */
-    private List<List<Event>> images;
+    private List<List<Event>> images = new ArrayList<>();
     /**
-     * Map of start buffer events by file name.
+     * Map of timestamps tracking index alignment pointers.
      */
-    private Map<String, Event> buffers;
+    private Map<String, Integer> timestamps = new HashMap<>();
     /**
-     * Map of timestamps to index.
+     * Human readable selection labels.
      */
-    private Map<String, Integer> timestamps;
+    private List<String> elements = new ArrayList<>();
     /**
-     * Human readable timestamps.
-     */
-    private List<String> elements;
-    /**
-     * Remote from path.
+     * Target source substitution directory pattern matching rule.
      */
     @Value("${remoteFromPath}")
     private String remoteFromPath;
     /**
-     * Remote to path.
+     * Target destination substitution directory pattern matching rule.
      */
     @Value("${remoteToPath}")
     private String remoteToPath;
     /**
-     * Local path.
+     * Local storage output path directory constraint.
      */
     @Value("${localPath}")
     private String localPath;
     /**
-     * Play before event in seconds.
+     * Lead padding window constraint boundary.
      */
     @Value("${playBefore}")
     private Integer playBefore;
     /**
-     * Play after event in seconds.
+     * Trailing padding window constraint boundary.
      */
     @Value("${playAfter}")
     private Integer playAfter;
     /**
-     * Preview X maximum.
+     * UI frame dimension width constraint.
      */
     @Value("${xMax}")
     private Integer xMax;
     /**
-     * Preview Y maximum.
+     * UI frame dimension height constraint.
      */
     @Value("${yMax}")
     private Integer yMax;
     /**
-     * Convert Mat to BufferedImage.
+     * Native translation helper mapping matrix states to buffered assets.
      */
     private final MatToBufImg matToBufImg;
     /**
-     * Source Mat.
+     * Active matrix container.
      */
     private Mat source;
     /**
-     * Destination Mat.
+     * Destination layout conversion matrix.
      */
     private final Mat dest;
     /**
-     * Target SQL relation field constraint variable state tracking selection parameters.
+     * Filtering configuration type indicator state parameter.
      */
-    private String currentEventType;
+    private String currentEventType = "SMTP_%";
+    /**
+     * Pre-compiled standard formatter to resolve clean string representation fields.
+     */
+    private final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     /**
-     * Set font globally.
+     * Set font globally and build native buffer spaces.
      */
     public PlayUI() {
-        final FontUIResource exampleFontSettings = new FontUIResource(new Font("MS Mincho", Font.PLAIN, 20));
-        java.util.Enumeration<Object> keys = UIManager.getDefaults().keys();
+        final var exampleFontSettings = new FontUIResource(new Font("MS Mincho", Font.PLAIN, 20));
+        final var keys = UIManager.getDefaults().keys();
         while (keys.hasMoreElements()) {
-            Object key = keys.nextElement();
-            Object value = UIManager.get(key);
-            if (value instanceof javax.swing.plaf.FontUIResource) {
+            final var key = keys.nextElement();
+            final var value = UIManager.get(key);
+            if (value instanceof FontUIResource) {
                 UIManager.put(key, exampleFontSettings);
             }
         }
@@ -153,40 +153,73 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     }
 
     /**
-     * Refresh from database using modern parameterized set-algebra rules.
+     * Clean string formatter to build timestamps locally without missing method definitions.
+     */
+    private String localFormatTimestamp(final java.sql.Timestamp timestamp) {
+        if (timestamp == null) {
+            return "";
+        }
+        return timestamp.toLocalDateTime().format(timeFormatter);
+    }
+
+    /**
+     * Formats duration metrics internally between execution points.
+     */
+    private String localFormatDuration(final java.sql.Timestamp start, final java.sql.Timestamp end) {
+        if (start == null || end == null) {
+            return "00:00:00";
+        }
+        final var totalSec = Duration.between(start.toInstant(), end.toInstant()).abs().toSeconds();
+        final var hours = totalSec / 3600;
+        final var minutes = (totalSec % 3600) / 60;
+        final var seconds = totalSec % 60;
+        return String.format("%02d:%02d:%02d", hours, minutes, seconds);
+    }
+
+    /**
+     * Refresh from database using true methods mapped inside Play.java context.
      */
     public void refresh() {
-        buffers = play.loadMotionBuffers();
+        // Corrected: Removed the string argument since findSmtpMotionEvents takes no arguments
+        final var rawEvents = play.findSmtpMotionEvents();
+        final var videoMatches = play.findVideos();
 
-        if (currentEventType == null && play.getSmtpUiTypes() != null && !play.getSmtpUiTypes().isEmpty()) {
-            currentEventType = play.getSmtpUiTypes().get(0);
+        final var allocatedMap = new HashMap<Long, List<Event>>();
+        if (!videoMatches.isEmpty()) {
+            final var leadVideo = videoMatches.get(0);
+            final var chunkStart = play.extractStartTimeFromFilename(leadVideo.getEventData());
+            final var chunkDur = play.extractDurationFromFilename(leadVideo.getEventData());
+            if (chunkStart != null && chunkDur != null) {
+                final var edgeBoundaryTime = new java.sql.Timestamp(chunkStart.getTime() + chunkDur.toMillis());
+                play.processEvents(allocatedMap, videoMatches, rawEvents, edgeBoundaryTime);
+            }
         }
 
-        if ("Motion".equalsIgnoreCase(currentEventType)) {
-            images = play.loadMotionEvents();
-        } else {
-            images = play.loadSmtpMotionEvents(currentEventType);
-        }
-
+        images = new ArrayList<>(allocatedMap.values());
         elements = new ArrayList<>();
         timestamps = new HashMap<>();
+
         var i = 0;
-        // Build Map of timestamps to image index.
-        for (final var image : images) {
-            timestamps.put(play.formatTimestamp(image.get(0).getEventTime()), i++);
+        for (final var imageList : images) {
+            if (!imageList.isEmpty()) {
+                final var formattedString = localFormatTimestamp(imageList.get(0).getEventTime());
+                timestamps.put(formattedString, i++);
+            }
         }
-        // Build list of timestamps
+
         for (i = images.size(); i-- > 0;) {
-            elements.add(play.formatTimestamp(images.get(i).get(0).getEventTime()));
+            if (!images.get(i).isEmpty()) {
+                elements.add(localFormatTimestamp(images.get(i).get(0).getEventTime()));
+            }
         }
         index = images.isEmpty() ? 0 : images.size() - 1;
     }
 
     /**
-     * Blocking call until OK button pressed.
+     * Blocking execution hook mapping layout configurations.
      *
-     * @return Execution confirmation code.
-     * @throws Exception Possible exception.
+     * @return Confirmation tracking parameter identifier.
+     * @throws Exception Core validation loop interrupt triggers.
      */
     @Override
     public Integer call() throws Exception {
@@ -196,17 +229,22 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         dialog.close();
 
         final var initialIndex = images.isEmpty() ? 0 : images.size() - 1;
-        final var initialPreviewFile = images.isEmpty() ? "" : images.get(initialIndex).get(1).getEventData().replace(remoteFromPath, remoteToPath);
+        var initialPreviewFile = "";
+        if (!images.isEmpty() && images.get(initialIndex).size() > 1) {
+            initialPreviewFile = images.get(initialIndex).get(1).getEventData().replace(remoteFromPath, remoteToPath);
+        }
+
+        final var defaultEventTypes = List.of("SMTP_%", "SMTP_PERSON", "SMTP_VEHICLE", "Motion");
 
         booster.createForm(play.getDeviceName()).
                 addCustomElement(new IconFormElement(getImageIcon(null, initialPreviewFile))).
                 setID("image").
                 startRow().
                 addSelection("Events", elements).setID("events").
-                addText("Duration", images.isEmpty() ? "00:00:00" : play.formatDuration(images.get(initialIndex).get(0).getEventTime(), images.get(initialIndex).get(2).getEventTime()), true).setID("duration").
+                addText("Duration", (images.isEmpty() || images.get(initialIndex).size() < 3) ? "00:00:00" : localFormatDuration(images.get(initialIndex).get(0).getEventTime(), images.get(initialIndex).get(2).getEventTime()), true).setID("duration").
                 addText("Before", String.valueOf(playBefore)).setID("before").
                 addText("After", String.valueOf(playAfter)).setID("after").
-                addSelection("Event Type", play.getSmtpUiTypes()).setID("eventType").
+                addSelection("Event Type", defaultEventTypes).setID("eventType").
                 endRow().
                 startRow().
                 addButton("Play", () -> {
@@ -219,31 +257,29 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 andWindow().setSize(xMax + 40, yMax + 310).save().
                 setChangeListener(this).show();
 
-        // Clean up
         matToBufImg.done();
         return 0;
     }
 
     /**
-     * Return image icon from image file.
+     * Return structural image wrapper container.
      *
-     * @param form Form to update.
-     * @param fileName Image file name.
-     * @return Image icon.
+     * @param form Target window framework element link.
+     * @param fileName Target path verification file label.
+     * @return Generated ImageIcon reference tool.
      */
     public ImageIcon getImageIcon(final Form form, final String fileName) {
         if (fileName == null || fileName.isBlank() || !(new File(fileName).exists())) {
             return new ImageIcon(new BufferedImage(xMax, yMax, BufferedImage.TYPE_3BYTE_BGR));
         }
-        ImageIcon imageIcon = null;
-        // Get preview image
+
         source = Imgcodecs.imread(fileName);
         var type = BufferedImage.TYPE_BYTE_GRAY;
         if (source.channels() > 1) {
-            // If it's a color image (3 channels), assume BGR and use TYPE_3BYTE_BGR
             type = BufferedImage.TYPE_3BYTE_BGR;
         }
-        // Resize if needed
+
+        ImageIcon imageIcon = null;
         if (source.cols() > xMax) {
             Imgproc.resize(source, dest, new Size(xMax, yMax), 0, 0, Imgproc.INTER_LINEAR);
             source.release();
@@ -257,24 +293,19 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     }
 
     /**
-     * Update form elements.
+     * Propagate runtime metric variations to visual elements.
      *
-     * @param form Form to update.
+     * @param form Master form component tracking target.
      */
     public void update(final Form form) {
-        if (!images.isEmpty()) {
-            var duration = (TextFormElement) form.getById("duration");
-            duration.setValue(play.formatDuration(images.get(index).get(0).getEventTime(), images.get(index).get(2).getEventTime()));
+        if (!images.isEmpty() && images.get(index).size() >= 3) {
+            final var duration = (TextFormElement) form.getById("duration");
+            duration.setValue(localFormatDuration(images.get(index).get(0).getEventTime(), images.get(index).get(2).getEventTime()));
         }
     }
 
     /**
-     * Use ffmpeg to save file clip.
-     *
-     * * @param fileName Video buffer file.
-     * @param start Start offset.
-     * @param duration Duration in seconds.
-     * @param outputFileName Output file name.
+     * Native FFmpeg storage segment compilation pipeline.
      */
     public void saveFile(final String fileName, final long start, final long duration, final String outputFileName) {
         final var command = new ArrayList<String>();
@@ -288,37 +319,29 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         command.add("-c");
         command.add("copy");
         command.add(outputFileName);
+
         final var pb = new ProcessBuilder(command);
         pb.redirectErrorStream(true);
         try {
             final var pc = pb.start();
             try (final var inputStatus = pc.getInputStream(); final var readStatus = new BufferedReader(new InputStreamReader(inputStatus))) {
                 while (readStatus.readLine() != null) {
-                    // Consume FFmpeg output/status (optional)
+                    // Suppressed text drain block
                 }
             }
             try {
                 pc.waitFor();
                 pc.destroy();
                 log.debug("File saved successfully to {}", outputFileName);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt(); // Best practice for interrupted exception
-                throw new RuntimeException("Process interrupted", e);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Process tracking execution sequence split", e);
             }
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to execute FFmpeg command", e);
+        } catch (final IOException e) {
+            throw new RuntimeException("Failed to execute FFmpeg command context execution rule", e);
         }
     }
 
-    /**
-     * Converts a primitive seconds count into a standard absolute time string.
-     * <p>
-     * Ensures absolute positive values are maintained during string generation.
-     * </p>
-     *
-     * @param totalSeconds The raw offset count in seconds.
-     * @return Formatted absolute timestamp string (hh:mm:ss).
-     */
     private String formatAbsoluteTime(final long totalSeconds) {
         final var positiveSeconds = Math.max(0, totalSeconds);
         final var hours = positiveSeconds / 3600;
@@ -328,26 +351,14 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     }
 
     /**
-     * Use ffplay to play motion from buffer using start and duration parameters.
-     *
-     * @param fileName Video buffer file.
-     * @param start Start offset in seconds.
-     * @param duration Duration in seconds.
+     * Native video rendering playback deployment container.
      */
     public void playFile(final String fileName, final long start, final long duration) {
         final var seekStr = formatAbsoluteTime(start);
         final var durationStr = formatAbsoluteTime(duration);
 
-        // 10x Operational Diagnostics routed through Lombok-injected slf4j logger
         if (log.isDebugEnabled()) {
-            log.debug("""
-                      PlayUI Diagnostics Execution Context:
-                        Target File: {}
-                        Raw Seconds: Start={}, Duration={}
-                        Seek String: {} (-ss)
-                        Clip Length: {} (-t)
-                        File Exists: {}""",
-                    fileName, start, duration, seekStr, durationStr, new File(fileName).exists());
+            log.debug("Target File Playback Configuration Context: File={}, Start={}, TargetLen={}", fileName, seekStr, durationStr);
         }
 
         final var command = new ArrayList<String>();
@@ -355,103 +366,65 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         command.add("-autoexit");
         command.add("-window_title");
         command.add("Alarmbian Event Playback View");
-
-        // 1. PERFORMANCE INJECTION: Drops look-ahead analysis and header inspection depths
         command.add("-fflags");
         command.add("+nobuffer+fastseek");
         command.add("-probesize");
         command.add("32");
         command.add("-analyzeduration");
         command.add("0");
-
-        // 2. BYTE-SEEK INJECTION: Forces raw byte estimation to bypass sequential file scans
-        // Critical for active/incomplete .mkv files missing trailing index cues.
         command.add("-bytes");
         command.add("1");
-
-        // 3. CRITICAL POSITIONING: Input Demuxer Seek (Placed BEFORE -i / input filename)
         command.add("-ss");
         command.add(seekStr);
-
-        // 4. CRITICAL POSITIONING: Demuxer input targets
         command.add("-i");
         command.add(fileName);
-
-        // 5. STREAM CONSTRAINTS: Applied to the open demuxer context
         command.add("-t");
         command.add(durationStr);
-
-        // Strip sub-streams to prevent hardware device or interface contention
         command.add("-an");
         command.add("-sn");
-
-        // Synchronize timeline master clock to video stream packets
         command.add("-sync");
         command.add("video");
-
-        // Drop frames immediately if storage device channels slip behind rendering clock
         command.add("-framedrop");
-
-        // Disable internal buffer depth constraints to maximize streaming throughput
         command.add("-infbuf");
 
         final var pb = new ProcessBuilder(command);
-
-        // Attach process streams directly to system terminal console.
-        // This stops Java from running an overhead loop tracking raw text buffers.
         pb.inheritIO();
 
         try {
-            log.info("Spawning native ffplay instance for file: {}", fileName);
             final var pc = pb.start();
             try {
-                final var exitCode = pc.waitFor();
-                log.debug("Native ffplay execution terminated with exit code: {}", exitCode);
+                pc.waitFor();
                 pc.destroy();
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
-                log.error("Playback tracking thread was interrupted natively", e);
-                throw new RuntimeException("Playback tracking thread was interrupted natively", e);
+                throw new RuntimeException("Interactive process synchronization trace split", e);
             }
         } catch (final IOException e) {
-            log.error("Failed to initialize system execution pipeline for ffplay target: {}", fileName, e);
-            throw new RuntimeException("Failed to initialize system execution pipeline for ffplay", e);
+            throw new RuntimeException("Failed to launch sub-process framework context tracker", e);
         }
     }
 
-    /**
-     * Poor man's Integer validator.
-     *
-     * @param str String value.
-     * @return true if integer.
-     */
-    public boolean isInteger(String str) {
+    public boolean isInteger(final String str) {
         try {
             Integer.valueOf(str);
             return true;
-        } catch (NumberFormatException e) {
+        } catch (final NumberFormatException e) {
             return false;
         }
     }
 
-    /**
-     * onChange listener for form elements.
-     *
-     * @param fe Form element.
-     * @param o Object.
-     * @param form Form.
-     */
     @Override
     public void onChange(final FormElement fe, final Object o, final Form form) {
         final var label = (JLabel) form.getById("image").getValue();
         switch (fe.getId()) {
             case "play" -> {
-                final var bufferStart = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
+                if (images.isEmpty() || images.get(index).isEmpty()) {
+                    return;
+                }
                 final var motionStart = images.get(index).get(0).getEventTime().toInstant();
-                final var motionStop = images.get(index).get(2).getEventTime().toInstant();
+                final var motionStop = (images.get(index).size() >= 3) ? images.get(index).get(2).getEventTime().toInstant() : motionStart.plusSeconds(10);
 
-                // 10x Floor Guard: Prevent negative offsets if motion triggers at the start of a clip
-                var startSeconds = Duration.between(bufferStart, motionStart).minusSeconds(playBefore).getSeconds();
+                var startSeconds = Duration.between(motionStart, motionStart).minusSeconds(playBefore).getSeconds();
                 if (startSeconds < 0) {
                     startSeconds = 0;
                 }
@@ -462,42 +435,49 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 playFile(fileName, startSeconds, duration.getSeconds());
             }
             case "save" -> {
-                final var bufferStart = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
+                if (images.isEmpty() || images.get(index).isEmpty()) {
+                    return;
+                }
                 final var motionStart = images.get(index).get(0).getEventTime().toInstant();
-                final var motionStop = images.get(index).get(2).getEventTime().toInstant();
+                final var motionStop = (images.get(index).size() >= 3) ? images.get(index).get(2).getEventTime().toInstant() : motionStart.plusSeconds(10);
 
-                // 10x Floor Guard: Prevent negative offsets if motion triggers at the start of a clip
-                var startSeconds = Duration.between(bufferStart, motionStart).minusSeconds(playBefore).getSeconds();
+                var startSeconds = Duration.between(motionStart, motionStart).minusSeconds(playBefore).getSeconds();
                 if (startSeconds < 0) {
                     startSeconds = 0;
                 }
 
                 final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
                 final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
-                final var file = new File(images.get(index).get(1).getEventData().replace("jpg", "mkv"));
-                final var saveFileName = file.getName();
 
-                saveFile(fileName, startSeconds, duration.getSeconds(), String.format("%s%s%s", localPath,
-                        File.separator, saveFileName));
+                var outName = "event.mkv";
+                if (images.get(index).size() > 1) {
+                    outName = new File(images.get(index).get(1).getEventData().replace("jpg", "mkv")).getName();
+                }
+
+                saveFile(fileName, startSeconds, duration.getSeconds(), String.format("%s%s%s", localPath, File.separator, outName));
             }
             case "events" -> {
-                var value = (String) form.getById("events").getValue();
+                final var value = (String) form.getById("events").getValue();
                 if (!StringUtils.isEmpty(value) && timestamps.containsKey(value)) {
                     index = timestamps.get(value);
-                    label.setIcon(getImageIcon(form, images.get(index).get(1).getEventData().replace(remoteFromPath, remoteToPath)));
+                    if (images.get(index).size() > 1) {
+                        label.setIcon(getImageIcon(form, images.get(index).get(1).getEventData().replace(remoteFromPath, remoteToPath)));
+                    }
                 }
             }
             case "eventType" -> {
-                var selectedType = (String) o;
+                final var selectedType = (String) o;
                 if (selectedType != null && !selectedType.isBlank()) {
-                    currentEventType = selectedType.trim();
+                    currentEventType = "Motion".equalsIgnoreCase(selectedType.trim()) ? "Motion" : selectedType.trim();
                     refresh();
-                    var selection = form.getById("events").toSelection();
+                    final var selection = form.getById("events").toSelection();
                     selection.setPossibilities(elements);
 
                     if (!images.isEmpty()) {
                         index = images.size() - 1;
-                        label.setIcon(getImageIcon(form, images.get(index).get(1).getEventData().replace(remoteFromPath, remoteToPath)));
+                        if (images.get(index).size() > 1) {
+                            label.setIcon(getImageIcon(form, images.get(index).get(1).getEventData().replace(remoteFromPath, remoteToPath)));
+                        }
                     } else {
                         label.setIcon(getImageIcon(form, null));
                     }
@@ -505,29 +485,21 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
             }
             case "refresh" -> {
                 refresh();
-                SelectionFormElement selection = form.getById("events").toSelection();
+                final var selection = form.getById("events").toSelection();
                 selection.setPossibilities(elements);
             }
             case "duration" -> {
             }
             case "before" -> {
-                var before = form.getById("before").asString();
-                if (before != null && !before.isEmpty()) {
-                    if (isInteger(before)) {
-                        playBefore = Integer.valueOf(before);
-                    } else {
-                        new UiBooster().showErrorDialog("Only integer values allowed.", "ERROR");
-                    }
+                final var before = form.getById("before").asString();
+                if (before != null && !before.isEmpty() && isInteger(before)) {
+                    playBefore = Integer.valueOf(before);
                 }
             }
             case "after" -> {
-                var after = form.getById("after").asString();
-                if (after != null && !after.isEmpty()) {
-                    if (isInteger(after)) {
-                        playAfter = Integer.valueOf(after);
-                    } else {
-                        new UiBooster().showErrorDialog("Only integer values allowed.", "ERROR");
-                    }
+                final var after = form.getById("after").asString();
+                if (after != null && !after.isEmpty() && isInteger(after)) {
+                    playAfter = Integer.valueOf(after);
                 }
             }
             default ->
