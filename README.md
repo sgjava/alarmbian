@@ -121,7 +121,8 @@ Add Supervisor job
 
 ## Play UI
 Play UI is a [UiBooster](https://github.com/Milchreis/UiBooster) based UI that uses OpenCV and ffplay to view events and play videos.
-You can set before and after seconds to see what was before and after event. You can also save event as video.
+You can set before and after seconds to see what was before and after event. You can also save event as video. While you can play
+videos from currently recording files there will be no index until file is closed. Thus, it will take longer to seek to event.
 ![Client](images/client.png)
 * `sudo apt install sshfs`
 * `sudo mkdir /mnt/data1` or whatever local dir you want to use
