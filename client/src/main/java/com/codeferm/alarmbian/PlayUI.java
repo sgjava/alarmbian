@@ -382,7 +382,6 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         command.add(durationStr);
 
         // Strip sub-streams to prevent hardware device or interface contention
-        command.add("-an");
         command.add("-sn");
 
         // Synchronize timeline master clock to video stream packets
