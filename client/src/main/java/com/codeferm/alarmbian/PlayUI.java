@@ -11,7 +11,6 @@ import de.milchreis.uibooster.model.Form;
 import de.milchreis.uibooster.model.FormElement;
 import de.milchreis.uibooster.model.FormElementChangeListener;
 import de.milchreis.uibooster.model.UiBoosterOptions;
-import de.milchreis.uibooster.model.formelements.SelectionFormElement;
 import de.milchreis.uibooster.model.formelements.TextFormElement;
 import java.awt.Font;
 import java.awt.image.BufferedImage;
@@ -36,14 +35,16 @@ import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 import picocli.CommandLine.Command;
 
 /**
- * Alarmbian player UI based on UI Booster.
+ * Consolidated multi-camera Alarmbian player UI based on UI Booster. Handles path normalization patterns to robustly translate
+ * hardware and SMTP records, backed by defensive index boundaries for multi-day soak tests.
  *
  * @author Steven P. Goldsmith
- * @version 1.0.0
+ * @version 1.1.5
  * @since 1.0.0
  */
 @Component
@@ -52,95 +53,127 @@ import picocli.CommandLine.Command;
 public class PlayUI implements Callable<Integer>, FormElementChangeListener {
 
     /**
-     * Play logic.
+     * Play logic instance orchestration service.
      */
     @Autowired
     private Play play;
+
     /**
-     * UI Booster.
+     * Spring environment resource context for dynamic workspace property resolution.
+     */
+    @Autowired
+    private Environment env;
+
+    /**
+     * UI Booster frame controller rendering engine instance.
      */
     private final UiBooster booster;
+
     /**
-     * Image index.
+     * Image timeline list index tracking reference identifier.
      */
     private int index = 0;
+
     /**
-     * List of motion start/stop and history stop.
+     * List of collated motion start/stop and history stop sequence arrays.
      */
     private List<List<Event>> images;
+
     /**
-     * Map of start buffer events by file name.
+     * Map of start buffer events keyed by source absolute file name tokens.
      */
     private Map<String, Event> buffers;
+
     /**
-     * Map of timestamps to index.
+     * Map of human-readable timestamps mapping cleanly to event index positions.
      */
     private Map<String, Integer> timestamps;
+
     /**
-     * Human readable timestamps.
+     * List of human readable timestamps utilized for select drop-down choices.
      */
     private List<String> elements;
+
     /**
-     * Remote from path.
+     * Ordered list holding the names of all active configured system hardware devices.
      */
-    @Value("${remoteFromPath}")
+    @Value("#{'${devices.list}'.split(',')}")
+    private List<String> devicesList;
+
+    /**
+     * Currently active target camera configuration block name identifier.
+     */
+    private String currentDeviceName;
+
+    /**
+     * Database origin remote directory path token prefix matches.
+     */
     private String remoteFromPath;
+
     /**
-     * Remote to path.
+     * System local target absolute directory mount map workspace coordinates.
      */
-    @Value("${remoteToPath}")
     private String remoteToPath;
+
     /**
-     * Local path.
+     * Local extraction save workspace path directory destination pointer.
      */
     @Value("${localPath}")
     private String localPath;
+
     /**
-     * Play before event in seconds.
+     * Play before event margin padding values represented in seconds.
      */
     @Value("${playBefore}")
     private Integer playBefore;
+
     /**
-     * Play after event in seconds.
+     * Play after event margin trailing padding values represented in seconds.
      */
     @Value("${playAfter}")
     private Integer playAfter;
+
     /**
-     * Preview X maximum.
+     * Preview image frame X coordinate limit resolution aspect boundary.
      */
     @Value("${xMax}")
     private Integer xMax;
+
     /**
-     * Preview Y maximum.
+     * Preview image frame Y coordinate limit resolution aspect boundary.
      */
     @Value("${yMax}")
     private Integer yMax;
+
     /**
-     * Convert Mat to BufferedImage.
+     * Native utility wrapper used to convert openCV Mat matrix files into buffered images.
      */
     private final MatToBufImg matToBufImg;
+
     /**
-     * Source Mat.
+     * Source matrix image reference placeholder frame structure for OpenCV.
      */
     private Mat source;
+
     /**
-     * Destination Mat.
+     * Target matrix scaled destination frame placeholder layout for OpenCV image transformation.
      */
     private final Mat dest;
+
     /**
-     * Target SQL relation field constraint variable state tracking selection parameters.
+     * Target event type constraint state tracking flag identifier.
      */
     private String currentEventType;
 
     /**
-     * Set font globally.
+     * Main UI display frame constructor setting standardized fonts and graphics flags.
      */
     public PlayUI() {
-        final FontUIResource exampleFontSettings = new FontUIResource(new Font("MS Mincho", Font.PLAIN, 20));
-        java.util.Enumeration<Object> keys = UIManager.getDefaults().keys();
+        final var exampleFontSettings = new FontUIResource(new Font("MS Mincho", Font.PLAIN, 20));
+        final var keys = UIManager.getDefaults().keys();
         while (keys.hasMoreElements()) {
-            Object key = keys.nextElement();
-            Object value = UIManager.get(key);
+            final var key = keys.nextElement();
+            final var value = UIManager.get(key);
             if (value instanceof javax.swing.plaf.FontUIResource) {
                 UIManager.put(key, exampleFontSettings);
             }
@@ -153,7 +186,41 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     }
 
     /**
-     * Refresh from database using modern parameterized set-algebra rules.
+     * Dynamically loads environmental path parameters for the chosen active device camera workspace.
+     *
+     * @param targetCamera The system reference key string matching target configurations.
+     */
+    private void activateCameraWorkspace(final String targetCamera) {
+        this.currentDeviceName = targetCamera;
+        this.remoteFromPath = env.getProperty(targetCamera + ".remoteFromPath");
+        this.remoteToPath = env.getProperty(targetCamera + ".remoteToPath");
+
+        log.info("Workspace activated: device={}, paths={} -> {}", currentDeviceName, remoteFromPath, remoteToPath);
+        play.setDeviceName(targetCamera);
+    }
+
+    /**
+     * Translates and normalizes file paths using regex routines to clean double-slashes common inside raw IP camera logging
+     * outputs.
+     *
+     * @param rawPath The original unmapped asset string location from storage metadata.
+     * @return Normalized and fully qualified target location matching system disk paths.
+     */
+    private String translatePath(final String rawPath) {
+        if (rawPath == null || rawPath.isBlank()) {
+            return "";
+        }
+        var sanitized = rawPath.replaceAll("/{2,}", "/");
+
+        if (remoteFromPath != null && !remoteFromPath.isBlank() && remoteToPath != null) {
+            sanitized = sanitized.replace(remoteFromPath, remoteToPath);
+        }
+
+        return sanitized.replaceAll("/{2,}", "/");
+    }
+
+    /**
+     * Sync data model maps and state metrics with target database storage configurations.
      */
     public void refresh() {
         buffers = play.loadMotionBuffers();
@@ -171,37 +238,44 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         elements = new ArrayList<>();
         timestamps = new HashMap<>();
         var i = 0;
-        // Build Map of timestamps to image index.
         for (final var image : images) {
             timestamps.put(play.formatTimestamp(image.get(0).getEventTime()), i++);
         }
-        // Build list of timestamps
         for (i = images.size(); i-- > 0;) {
             elements.add(play.formatTimestamp(images.get(i).get(0).getEventTime()));
         }
+
+        // Safety Guard: Force index inside the ceiling boundary when structural list sizes mutate
         index = images.isEmpty() ? 0 : images.size() - 1;
     }
 
     /**
-     * Blocking call until OK button pressed.
+     * Initial startup controller managing graphical window rendering contexts.
      *
-     * @return Execution confirmation code.
-     * @throws Exception Possible exception.
+     * @return Execution result tracking confirmation code.
+     * @throws Exception Mapping execution handling channel issues.
      */
     @Override
     public Integer call() throws Exception {
-        final var dialog = booster.showWaitingDialog("Operation", play.getDeviceName());
+        if (devicesList == null || devicesList.isEmpty()) {
+            throw new IllegalStateException("The devices.list configuration entry cannot be blank or missing.");
+        }
+
+        activateCameraWorkspace(devicesList.get(0));
+
+        final var dialog = booster.showWaitingDialog("Operation", currentDeviceName);
         dialog.addToLargeMessage("Refresh data");
         refresh();
         dialog.close();
 
         final var initialIndex = images.isEmpty() ? 0 : images.size() - 1;
-        final var initialPreviewFile = images.isEmpty() ? "" : images.get(initialIndex).get(1).getEventData().replace(remoteFromPath, remoteToPath);
+        final var initialPreviewFile = images.isEmpty() ? "" : translatePath(images.get(initialIndex).get(1).getEventData());
 
-        booster.createForm(play.getDeviceName()).
+        booster.createForm("Alarmbian Multi-Cam Console").
                 addCustomElement(new IconFormElement(getImageIcon(null, initialPreviewFile))).
                 setID("image").
                 startRow().
+                addSelection("Active Camera", devicesList).setID("activeCamera").
                 addSelection("Events", elements).setID("events").
                 addText("Duration", images.isEmpty() ? "00:00:00" : play.formatDuration(images.get(initialIndex).get(0).getEventTime(), images.get(initialIndex).get(2).getEventTime()), true).setID("duration").
                 addText("Before", String.valueOf(playBefore)).setID("before").
@@ -219,31 +293,28 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 andWindow().setSize(xMax + 40, yMax + 310).save().
                 setChangeListener(this).show();
 
-        // Clean up
         matToBufImg.done();
         return 0;
     }
 
     /**
-     * Return image icon from image file.
+     * Map target video files or image frames into valid Swing Icon components.
      *
-     * @param form Form to update.
-     * @param fileName Image file name.
-     * @return Image icon.
+     * @param form The active parent UI booster layout context reference.
+     * @param fileName The absolute path pointing to targeted disk image assets.
+     * @return Formatted Icon asset ready for layout rendering panels.
      */
     public ImageIcon getImageIcon(final Form form, final String fileName) {
         if (fileName == null || fileName.isBlank() || !(new File(fileName).exists())) {
+            log.warn("Target preview layout asset missing on disk: {}", fileName);
             return new ImageIcon(new BufferedImage(xMax, yMax, BufferedImage.TYPE_3BYTE_BGR));
         }
-        ImageIcon imageIcon = null;
-        // Get preview image
+        var imageIcon = (ImageIcon) null;
         source = Imgcodecs.imread(fileName);
         var type = BufferedImage.TYPE_BYTE_GRAY;
         if (source.channels() > 1) {
-            // If it's a color image (3 channels), assume BGR and use TYPE_3BYTE_BGR
             type = BufferedImage.TYPE_3BYTE_BGR;
         }
-        // Resize if needed
         if (source.cols() > xMax) {
             Imgproc.resize(source, dest, new Size(xMax, yMax), 0, 0, Imgproc.INTER_LINEAR);
             source.release();
@@ -257,24 +328,24 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     }
 
     /**
-     * Update form elements.
+     * Refresh text layout parameter components tracking tracking metrics.
      *
-     * @param form Form to update.
+     * @param form Base container tracking structural frame layouts.
      */
     public void update(final Form form) {
-        if (!images.isEmpty()) {
-            var duration = (TextFormElement) form.getById("duration");
+        if (!images.isEmpty() && index < images.size()) {
+            final var duration = (TextFormElement) form.getById("duration");
             duration.setValue(play.formatDuration(images.get(index).get(0).getEventTime(), images.get(index).get(2).getEventTime()));
         }
     }
 
     /**
-     * Use ffmpeg to save file clip.
+     * Process chunk extractions through an external localized FFmpeg pipeline context execution loop.
      *
-     * * @param fileName Video buffer file.
-     * @param start Start offset.
-     * @param duration Duration in seconds.
-     * @param outputFileName Output file name.
+     * @param fileName Source video file location.
+     * @param start Execution timing offset baseline.
+     * @param duration Interval length segment tracking variable.
+     * @param outputFileName Target destination coordinate assignment mapping on system storage.
      */
     public void saveFile(final String fileName, final long start, final long duration, final String outputFileName) {
         final var command = new ArrayList<String>();
@@ -294,30 +365,27 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
             final var pc = pb.start();
             try (final var inputStatus = pc.getInputStream(); final var readStatus = new BufferedReader(new InputStreamReader(inputStatus))) {
                 while (readStatus.readLine() != null) {
-                    // Consume FFmpeg output/status (optional)
+                    // Drain native buffers completely
                 }
             }
             try {
                 pc.waitFor();
                 pc.destroy();
                 log.debug("File saved successfully to {}", outputFileName);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt(); // Best practice for interrupted exception
-                throw new RuntimeException("Process interrupted", e);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Process tracking context execution failure interrupted", e);
             }
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to execute FFmpeg command", e);
+        } catch (final IOException e) {
+            throw new RuntimeException("Failed to run local structural process engine clip commands", e);
         }
     }
 
     /**
-     * Converts a primitive seconds count into a standard absolute time string.
-     * <p>
-     * Ensures absolute positive values are maintained during string generation.
-     * </p>
+     * Helper formatting metric tracking temporal values inside playback parameter strings.
      *
-     * @param totalSeconds The raw offset count in seconds.
-     * @return Formatted absolute timestamp string (hh:mm:ss).
+     * @param totalSeconds Raw baseline timestamp value metrics.
+     * @return Normalized string representation tracking element parameters.
      */
     private String formatAbsoluteTime(final long totalSeconds) {
         final var positiveSeconds = Math.max(0, totalSeconds);
@@ -328,25 +396,24 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     }
 
     /**
-     * Use ffplay to play motion from buffer using start and duration parameters.
+     * Triggers active FFplay rendering environments utilizing prioritized real-time performance constraints.
      *
-     * @param fileName Video buffer file.
-     * @param start Start offset in seconds.
-     * @param duration Duration in seconds.
+     * @param fileName Targeted raw track layout file asset destination location.
+     * @param start Numeric timestamp offset metric track index entry.
+     * @param duration Sequence length scope evaluation window bounds.
      */
     public void playFile(final String fileName, final long start, final long duration) {
         final var seekStr = formatAbsoluteTime(start);
         final var durationStr = formatAbsoluteTime(duration);
 
-        // 10x Operational Diagnostics routed through Lombok-injected slf4j logger
         if (log.isDebugEnabled()) {
             log.debug("""
-                      PlayUI Diagnostics Execution Context:
-                        Target File: {}
-                        Raw Seconds: Start={}, Duration={}
-                        Seek String: {} (-ss)
-                        Clip Length: {} (-t)
-                        File Exists: {}""",
+                     PlayUI Diagnostics Execution Context:
+                       Target File: {}
+                       Raw Seconds: Start={}, Duration={}
+                       Seek String: {} (-ss)
+                       Clip Length: {} (-t)
+                       File Exists: {}""",
                     fileName, start, duration, seekStr, durationStr, new File(fileName).exists());
         }
 
@@ -354,9 +421,8 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         command.add("ffplay");
         command.add("-autoexit");
         command.add("-window_title");
-        command.add("Alarmbian Event Playback View");
+        command.add("Alarmbian Event Playback View: " + currentDeviceName);
 
-        // 1. PERFORMANCE INJECTION: Drops look-ahead analysis and header inspection depths
         command.add("-fflags");
         command.add("+nobuffer+fastseek");
         command.add("-probesize");
@@ -364,40 +430,25 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
         command.add("-analyzeduration");
         command.add("0");
 
-        // 2. BYTE-SEEK INJECTION: Forces raw byte estimation to bypass sequential file scans
-        // Critical for active/incomplete .mkv files missing trailing index cues.
         command.add("-bytes");
         command.add("1");
 
-        // 3. CRITICAL POSITIONING: Input Demuxer Seek (Placed BEFORE -i / input filename)
         command.add("-ss");
         command.add(seekStr);
 
-        // 4. CRITICAL POSITIONING: Demuxer input targets
         command.add("-i");
         command.add(fileName);
 
-        // 5. STREAM CONSTRAINTS: Applied to the open demuxer context
         command.add("-t");
         command.add(durationStr);
 
-        // Strip sub-streams to prevent hardware device or interface contention
         command.add("-sn");
-
-        // Synchronize timeline master clock to video stream packets
         command.add("-sync");
         command.add("video");
-
-        // Drop frames immediately if storage device channels slip behind rendering clock
         command.add("-framedrop");
-
-        // Disable internal buffer depth constraints to maximize streaming throughput
         command.add("-infbuf");
 
         final var pb = new ProcessBuilder(command);
-
-        // Attach process streams directly to system terminal console.
-        // This stops Java from running an overhead loop tracking raw text buffers.
         pb.inheritIO();
 
         try {
@@ -419,60 +470,83 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     }
 
     /**
-     * Poor man's Integer validator.
+     * Standard string digit parsing structural validation verification method.
      *
-     * @param str String value.
-     * @return true if integer.
+     * @param str Raw string characters.
+     * @return Validation status confirmation true if formatting matches valid numerical ranges.
      */
-    public boolean isInteger(String str) {
+    public boolean isInteger(final String str) {
         try {
             Integer.valueOf(str);
             return true;
-        } catch (NumberFormatException e) {
+        } catch (final NumberFormatException e) {
             return false;
         }
     }
 
     /**
-     * onChange listener for form elements.
+     * Value mutation trigger handling routing managing form state alterations defensively.
      *
-     * @param fe Form element.
-     * @param o Object.
-     * @param form Form.
+     * @param fe Active target interface component reference token tracker.
+     * @param o Evaluated value transformation wrapper mapping parameters.
+     * @param form Current parent display container structural element reference tracker.
      */
     @Override
     public void onChange(final FormElement fe, final Object o, final Form form) {
         final var label = (JLabel) form.getById("image").getValue();
         switch (fe.getId()) {
+            case "activeCamera" -> {
+                final var selectedCam = (String) o;
+                if (selectedCam != null && !selectedCam.isBlank()) {
+                    activateCameraWorkspace(selectedCam.trim());
+                    refresh();
+
+                    final var selection = form.getById("events").toSelection();
+                    selection.setPossibilities(elements);
+
+                    if (!images.isEmpty()) {
+                        index = images.size() - 1;
+                        label.setIcon(getImageIcon(form, translatePath(images.get(index).get(1).getEventData())));
+                    } else {
+                        label.setIcon(getImageIcon(form, null));
+                        final var duration = (TextFormElement) form.getById("duration");
+                        duration.setValue("00:00:00");
+                    }
+                }
+            }
             case "play" -> {
+                if (images.isEmpty() || index >= images.size()) {
+                    break;
+                }
                 final var bufferStart = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
                 final var motionStart = images.get(index).get(0).getEventTime().toInstant();
                 final var motionStop = images.get(index).get(2).getEventTime().toInstant();
 
-                // 10x Floor Guard: Prevent negative offsets if motion triggers at the start of a clip
                 var startSeconds = Duration.between(bufferStart, motionStart).minusSeconds(playBefore).getSeconds();
                 if (startSeconds < 0) {
                     startSeconds = 0;
                 }
 
                 final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
-                final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
+                final var fileName = translatePath(images.get(index).get(0).getEventData());
 
                 playFile(fileName, startSeconds, duration.getSeconds());
             }
             case "save" -> {
+                if (images.isEmpty() || index >= images.size()) {
+                    break;
+                }
                 final var bufferStart = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
                 final var motionStart = images.get(index).get(0).getEventTime().toInstant();
                 final var motionStop = images.get(index).get(2).getEventTime().toInstant();
 
-                // 10x Floor Guard: Prevent negative offsets if motion triggers at the start of a clip
                 var startSeconds = Duration.between(bufferStart, motionStart).minusSeconds(playBefore).getSeconds();
                 if (startSeconds < 0) {
                     startSeconds = 0;
                 }
 
                 final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
-                final var fileName = images.get(index).get(0).getEventData().replace(remoteFromPath, remoteToPath);
+                final var fileName = translatePath(images.get(index).get(0).getEventData());
                 final var file = new File(images.get(index).get(1).getEventData().replace("jpg", "mkv"));
                 final var saveFileName = file.getName();
 
@@ -480,23 +554,26 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                         File.separator, saveFileName));
             }
             case "events" -> {
-                var value = (String) form.getById("events").getValue();
+                final var value = (String) form.getById("events").getValue();
                 if (!StringUtils.isEmpty(value) && timestamps.containsKey(value)) {
-                    index = timestamps.get(value);
-                    label.setIcon(getImageIcon(form, images.get(index).get(1).getEventData().replace(remoteFromPath, remoteToPath)));
+                    final var targetIdx = timestamps.get(value);
+                    if (targetIdx < images.size()) {
+                        index = targetIdx;
+                        label.setIcon(getImageIcon(form, translatePath(images.get(index).get(1).getEventData())));
+                    }
                 }
             }
             case "eventType" -> {
-                var selectedType = (String) o;
+                final var selectedType = (String) o;
                 if (selectedType != null && !selectedType.isBlank()) {
                     currentEventType = selectedType.trim();
                     refresh();
-                    var selection = form.getById("events").toSelection();
+                    final var selection = form.getById("events").toSelection();
                     selection.setPossibilities(elements);
 
                     if (!images.isEmpty()) {
                         index = images.size() - 1;
-                        label.setIcon(getImageIcon(form, images.get(index).get(1).getEventData().replace(remoteFromPath, remoteToPath)));
+                        label.setIcon(getImageIcon(form, translatePath(images.get(index).get(1).getEventData())));
                     } else {
                         label.setIcon(getImageIcon(form, null));
                     }
@@ -504,13 +581,13 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
             }
             case "refresh" -> {
                 refresh();
-                SelectionFormElement selection = form.getById("events").toSelection();
+                final var selection = form.getById("events").toSelection();
                 selection.setPossibilities(elements);
             }
             case "duration" -> {
             }
             case "before" -> {
-                var before = form.getById("before").asString();
+                final var before = form.getById("before").asString();
                 if (before != null && !before.isEmpty()) {
                     if (isInteger(before)) {
                         playBefore = Integer.valueOf(before);
@@ -520,7 +597,7 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 }
             }
             case "after" -> {
-                var after = form.getById("after").asString();
+                final var after = form.getById("after").asString();
                 if (after != null && !after.isEmpty()) {
                     if (isInteger(after)) {
                         playAfter = Integer.valueOf(after);

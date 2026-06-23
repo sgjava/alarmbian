@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,7 +24,7 @@ import org.springframework.stereotype.Component;
  * boundaries.
  *
  * @author Steven P. Goldsmith
- * @version 1.0.0
+ * @version 1.1.0
  * @since 1.0.0
  */
 @Component
@@ -31,10 +32,10 @@ import org.springframework.stereotype.Component;
 public class Play {
 
     /**
-     * Device name configuration asset.
+     * Target active device name workspace identifier configuration asset.
      */
-    @Value("${device.name}")
     @Getter
+    @Setter
     private String deviceName;
 
     /**
@@ -74,6 +75,9 @@ public class Play {
      * @return Formatted localized representation.
      */
     public String formatTimestamp(final Timestamp timestamp) {
+        if (timestamp == null) {
+            return "";
+        }
         return String.format("%1$TD %1$Tr", timestamp);
     }
 
@@ -85,8 +89,12 @@ public class Play {
      * @return Formatted duration interval metric string.
      */
     public String formatDuration(final Timestamp start, final Timestamp end) {
+        if (start == null || end == null) {
+            return "00:00:00";
+        }
         final var seconds = Duration.between(start.toInstant(), end.toInstant()).toSeconds();
-        return String.format("%02d:%02d:%02d", seconds / 3600, (seconds % 3600) / 60, (seconds % 60));
+        final var positiveSeconds = Math.max(0, seconds);
+        return String.format("%02d:%02d:%02d", positiveSeconds / 3600, (positiveSeconds % 3600) / 60, (positiveSeconds % 60));
     }
 
     /**
@@ -95,6 +103,9 @@ public class Play {
      * @return Unfiltered source database entity list records.
      */
     public List<Event> findMotionEvents() {
+        if (deviceName == null || deviceName.isBlank()) {
+            return new ArrayList<>();
+        }
         return eventService.findMotionEvents(deviceName);
     }
 
@@ -106,6 +117,10 @@ public class Play {
     public List<List<Event>> loadMotionEvents() {
         final var list = findMotionEvents();
         final var images = new ArrayList<List<Event>>();
+        if (list == null || list.isEmpty()) {
+            return images;
+        }
+
         var subList = new ArrayList<Event>();
         var subListSeq = 0;
 
@@ -114,14 +129,14 @@ public class Play {
                 subList.add(events);
                 if (subListSeq == 2) {
                     images.add(subList);
-                    subList = new ArrayList<Event>();
+                    subList = new ArrayList<>();
                     subListSeq = 0;
                 } else {
                     subListSeq++;
                 }
             } else {
-                log.warn(String.format("Event %d %s out of sequence, expected %s, but got %s", events.getId(),
-                        formatTimestamp(events.getEventTime()), motionEvents[subListSeq], events.getEventType()));
+                log.warn("Event {} {} out of sequence, expected {}, but got {}", events.getId(),
+                        formatTimestamp(events.getEventTime()), motionEvents[subListSeq], events.getEventType());
             }
         }
         return images;
@@ -133,6 +148,9 @@ public class Play {
      * @return Array collection of tracking entries.
      */
     public List<Event> findBuffers() {
+        if (deviceName == null || deviceName.isBlank()) {
+            return new ArrayList<>();
+        }
         return eventService.findBuffers(deviceName);
     }
 
@@ -144,9 +162,13 @@ public class Play {
     public Map<String, Event> loadMotionBuffers() {
         final var list = findBuffers();
         final var buffers = new HashMap<String, Event>();
-        list.forEach(events -> {
-            buffers.put(events.getEventData(), events);
-        });
+        if (list != null) {
+            list.forEach(events -> {
+                if (events.getEventData() != null) {
+                    buffers.put(events.getEventData(), events);
+                }
+            });
+        }
         return buffers;
     }
 
@@ -156,6 +178,9 @@ public class Play {
      * @return Target file logs array map.
      */
     public List<Event> findMotionFiles() {
+        if (deviceName == null || deviceName.isBlank()) {
+            return new ArrayList<>();
+        }
         return eventService.findMotionFiles(deviceName);
     }
 
@@ -167,6 +192,9 @@ public class Play {
      * @param smtpEvent Raw source image transmission log token.
      */
     public void createAndAddEvents(final List<List<Event>> images, final Event start, final Event smtpEvent) {
+        if (start == null || smtpEvent == null) {
+            return;
+        }
         final var subList = new ArrayList<Event>();
         subList.add(new Event(start.getDeviceName(), EventType.MOTION_START.name(), start.getEventData(),
                 Timestamp.from(smtpEvent.getEventTime().toInstant().minusSeconds(playBefore))));
@@ -178,8 +206,7 @@ public class Play {
     }
 
     /**
-     * Map SMTP tracking frames across multi-file recording intervals using the default configuration type. Resolves timeline
-     * processing issues when hardware files miss explicit stop tokens.
+     * Map SMTP tracking frames across multi-file recording intervals using the default configuration type.
      *
      * @return Normalized tracking records arranged chronologically.
      */
@@ -189,8 +216,7 @@ public class Play {
     }
 
     /**
-     * Map SMTP tracking frames across multi-file recording intervals using a dynamic relational type constraint. Resolves timeline
-     * processing issues when hardware files miss explicit stop tokens.
+     * Map SMTP tracking frames across multi-file recording intervals using a dynamic relational type constraint.
      *
      * @param eventType The specific enum classification type token or wildcard pattern to restrict rows by.
      * @return Normalized tracking records arranged chronologically.
@@ -200,42 +226,36 @@ public class Play {
         final var events = findSmtpMotionEvents(eventType);
         final var images = new ArrayList<List<Event>>();
 
-        if (videos.isEmpty() || events.isEmpty()) {
+        if (videos == null || events == null || videos.isEmpty() || events.isEmpty()) {
             return images;
         }
 
         var eventsIndex = 0;
 
-        // Linear state process through sequential video timeline tracking rows
         for (var i = 0; i < videos.size(); i++) {
             final var currentVideo = videos.get(i);
 
-            if (!currentVideo.getEventType().equals("RECORD_START")) {
+            if (!"RECORD_START".equals(currentVideo.getEventType())) {
                 continue;
             }
 
-            // Map upper temporal limits for tracking boundaries based on next entry data
             var boundaryTime = (Timestamp) null;
             if (i + 1 < videos.size()) {
                 final var nextTrack = videos.get(i + 1);
                 boundaryTime = nextTrack.getEventTime();
 
-                // If it is an explicit stop event matching this video container context, consume it
-                if (nextTrack.getEventType().equals("RECORD_STOP") && currentVideo.getEventData().equals(nextTrack.getEventData())) {
+                if ("RECORD_STOP".equals(nextTrack.getEventType()) && currentVideo.getEventData() != null && currentVideo.getEventData().equals(nextTrack.getEventData())) {
                     i++;
                 }
             }
 
-            // Advance over lingering SMTP records logged prior to the current capture timeline window
             while (eventsIndex < events.size() && events.get(eventsIndex).getEventTime().before(currentVideo.getEventTime())) {
                 eventsIndex++;
             }
 
-            // Collate all raw SMTP items falling cleanly inside this recording container bracket
             while (eventsIndex < events.size()) {
                 final var currentSmtp = events.get(eventsIndex);
 
-                // Stop evaluation if matching entry breaches active timeline limits
                 if (boundaryTime != null && !currentSmtp.getEventTime().before(boundaryTime)) {
                     break;
                 }
@@ -253,6 +273,9 @@ public class Play {
      * @return Collection array list.
      */
     public List<Event> findVideos() {
+        if (deviceName == null || deviceName.isBlank()) {
+            return new ArrayList<>();
+        }
         return eventService.findVideos(deviceName);
     }
 
@@ -262,6 +285,9 @@ public class Play {
      * @return SMTP operational dataset list.
      */
     public List<Event> findSmtpMotionEvents() {
+        if (deviceName == null || deviceName.isBlank()) {
+            return new ArrayList<>();
+        }
         return eventService.findSmtpMotionEvents(deviceName, "SMTP_%");
     }
 
@@ -272,6 +298,9 @@ public class Play {
      * @return SMTP operational dataset list matching the specified constraint boundary.
      */
     public List<Event> findSmtpMotionEvents(final String eventType) {
+        if (deviceName == null || deviceName.isBlank()) {
+            return new ArrayList<>();
+        }
         return eventService.findSmtpMotionEvents(deviceName, eventType);
     }
 }

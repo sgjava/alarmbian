@@ -73,7 +73,7 @@
             <groupId>org.opencv</groupId>
             <artifactId>opencv</artifactId>
             <version>4.13.0</version>
-        </dependency>
+        </dependency>  
         <dependency>
             <groupId>com.codeferm</groupId>
             <artifactId>image</artifactId>
