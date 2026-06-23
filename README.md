@@ -105,6 +105,16 @@ Modify script to customize install for hardware acceleration, etc.
 * `sudo supervisorctl start mediamtx`
 * Use [application.properties](https://raw.githubusercontent.com/sgjava/alarmbian/refs/heads/main/server/src/main/resources/application.properties)
 to make your cam1.properties configuration (repeat for each camera using unique file name)
+* `sudo mkdir -p /etc/alarmbian`
+* `sudo nano /etc/alarmbian/server-secrets.properties`
+  ```
+spring.datasource.username=sa
+spring.datasource.password=sa
+
+camera.mainstream.username=user
+camera.mainstream.password=password
+
+  ```
 * `java -Djava.library.path=/home/username/opencv/build/lib -jar server-1.0.0-SNAPSHOT.jar --spring.config.location=cam1.properties`
 * ^C to exit app
 * If you see a SIGSEGV don't worry because ^C will not be used for shutdown.
@@ -122,12 +132,21 @@ Add Supervisor job
 ## Play UI
 Play UI is a [UiBooster](https://github.com/Milchreis/UiBooster) based UI that uses OpenCV and ffplay to view events and play videos.
 You can set before and after seconds to see what was before and after event. You can also save event as video. While you can play
-videos from currently recording files there will be no index until file is closed. Thus, it will take longer to seek to event.
+videos from currently recording files there will be no index until file is closed. Thus, it will take longer to seek to the event.
 ![Client](images/client.png)
 * `sudo apt install sshfs`
 * `sudo mkdir /mnt/data1` or whatever local dir you want to use
 * `sudo chown username:username /mnt/data1` change username to your local user
 * `sshfs servadmin@192.168.1.99:/data1/ /mnt/data1` change ip, remote and local dirs as needed
 * `cd alarmbian` this assumes you compiled project on the UI machine
+* `sudo mkdir -p /etc/alarmbian`
+* `sudo nano /etc/alarmbian/client-secrets.properties`
+  ```
+spring.datasource.username=sa
+spring.datasource.password=sa
+
+  ```
+* `sudo chmod 600 /etc/alarmbian/client-secrets.properties`
+* `sudo chown servadmin:servadmin /etc/alarmbian/client-secrets.properties`
 * Use [application.properties](https://raw.githubusercontent.com/sgjava/alarmbian/refs/heads/main/client/src/main/resources/application.properties) to make your own client.properties
-* `java -Djava.library.path=/home/username/opencv/build/lib -Dspring.config.location=file:cam1.properties -jar client/target/client-1.0.0-SNAPSHOT.jar`
+* `java -Djava.library.path=/home/username/opencv/build/lib -Dspring.config.location=file:client.properties -jar client/target/client-1.0.0-SNAPSHOT.jar`
