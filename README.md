@@ -114,6 +114,8 @@ to make your cam1.properties configuration (repeat for each camera using unique 
     camera.mainstream.username=user
     camera.mainstream.password=password
     ```
+* `sudo chmod 600 /etc/alarmbian/server-secrets.properties`
+* `sudo chown servadmin:servadmin /etc/alarmbian/server-secrets.properties`
 * `java -Djava.library.path=/home/username/opencv/build/lib -jar server-1.0.0-SNAPSHOT.jar --spring.config.location=cam1.properties`
 * ^C to exit app
 * If you see a SIGSEGV don't worry because ^C will not be used for shutdown.
