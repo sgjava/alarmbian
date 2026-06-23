@@ -113,6 +113,9 @@ to make your cam1.properties configuration (repeat for each camera using unique 
 
     camera.mainstream.username=user
     camera.mainstream.password=password
+
+    smtp.user = user
+    smtp.password = password
     ```
 * `sudo chmod 600 /etc/alarmbian/server-secrets.properties`
 * `sudo chown username:username /etc/alarmbian/server-secrets.properties`

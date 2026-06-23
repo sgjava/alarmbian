@@ -10,6 +10,13 @@ import javax.swing.ImageIcon;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 
+/**
+ * This is used to display images.
+ *
+ * @author Steven P. Goldsmith
+ * @version 1.0.0
+ * @since 1.0.0
+ */
 public class IconFormElement extends FormElement<JLabel> {
 
     private final ImageIcon imageIcon;

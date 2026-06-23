@@ -40,11 +40,12 @@ import org.springframework.stereotype.Component;
 import picocli.CommandLine.Command;
 
 /**
- * Consolidated multi-camera Alarmbian player UI based on UI Booster. Handles path normalization patterns to robustly translate
- * hardware and SMTP records, backed by defensive index boundaries for multi-day soak tests.
+ * High-performance, consolidated multi-camera Alarmbian desktop event viewer console interface. Implements direct ProcessBuilder
+ * process tracking execution contexts to execute local native multi-channel hardware accelerated media playback and dynamic clip
+ * extraction pipelines via external configurations.
  *
  * @author Steven P. Goldsmith
- * @version 1.1.5
+ * @version 1.0.0
  * @since 1.0.0
  */
 @Component
@@ -53,19 +54,31 @@ import picocli.CommandLine.Command;
 public class PlayUI implements Callable<Integer>, FormElementChangeListener {
 
     /**
-     * Play logic instance orchestration service.
+     * Play logic instance orchestration service handling timeline collation and storage querying.
      */
     @Autowired
     private Play play;
 
     /**
-     * Spring environment resource context for dynamic workspace property resolution.
+     * Spring environment resource context used to perform dynamic runtime property expansions.
      */
     @Autowired
     private Environment env;
 
     /**
-     * UI Booster frame controller rendering engine instance.
+     * Space-delimited template line defining the exact executable binary string layout and placeholder tokens.
+     */
+    @Value("${ffplay.command.template}")
+    private String ffplayCommandTemplate;
+
+    /**
+     * Space-delimited template line defining the native ffmpeg archive subsegment extraction pipeline layout.
+     */
+    @Value("${ffmpeg.command.template}")
+    private String ffmpegCommandTemplate;
+
+    /**
+     * UI Booster layout frame controller managing graphical window generation tasks.
      */
     private final UiBooster booster;
 
@@ -75,120 +88,134 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     private int index = 0;
 
     /**
-     * List of collated motion start/stop and history stop sequence arrays.
+     * Hierarchical list grouping motion start, target preview thumbnail, and motion termination event records.
      */
     private List<List<Event>> images;
 
     /**
-     * Map of start buffer events keyed by source absolute file name tokens.
+     * Map tracking reference baseline index elements matching raw event keys back to database metrics.
      */
     private Map<String, Event> buffers;
 
     /**
-     * Map of human-readable timestamps mapping cleanly to event index positions.
+     * Map indexing unique, localized display strings directly into their index locations inside the timeline.
      */
     private Map<String, Integer> timestamps;
 
     /**
-     * List of human readable timestamps utilized for select drop-down choices.
+     * Chronological collection of select-box friendly date-time text arrays.
      */
     private List<String> elements;
 
     /**
-     * Ordered list holding the names of all active configured system hardware devices.
+     * Ordered list holding the names of all active configured single board or IP camera profiles.
      */
     @Value("#{'${devices.list}'.split(',')}")
     private List<String> devicesList;
 
     /**
-     * Currently active target camera configuration block name identifier.
+     * Collection of volume modification adjustment settings options strings.
+     */
+    private final List<String> volumeOptionsList;
+
+    /**
+     * Currently active target volume modification adjustment token value.
+     */
+    private String selectedVolumeAdjustment;
+
+    /**
+     * Active device workspace configuration block identifier name key.
      */
     private String currentDeviceName;
 
     /**
-     * Database origin remote directory path token prefix matches.
+     * Database origin directory location prefix path matching mask.
      */
     private String remoteFromPath;
 
     /**
-     * System local target absolute directory mount map workspace coordinates.
+     * Target mounting directory translation absolute coordinate map path on the local viewing node.
      */
     private String remoteToPath;
 
     /**
-     * Local extraction save workspace path directory destination pointer.
+     * Local saving and target segmentation scratch space workspace directory.
      */
     @Value("${localPath}")
     private String localPath;
 
     /**
-     * Play before event margin padding values represented in seconds.
+     * Playback look-ahead timeline offset pre-padding multiplier metric tracked in seconds.
      */
     @Value("${playBefore}")
     private Integer playBefore;
 
     /**
-     * Play after event margin trailing padding values represented in seconds.
+     * Playback trailing timeline offset padding boundary multiplier metric tracked in seconds.
      */
     @Value("${playAfter}")
     private Integer playAfter;
 
     /**
-     * Preview image frame X coordinate limit resolution aspect boundary.
+     * Preview image dimension layout boundary aspect maximum width constraint coordinate.
      */
     @Value("${xMax}")
     private Integer xMax;
 
     /**
-     * Preview image frame Y coordinate limit resolution aspect boundary.
+     * Preview image dimension layout boundary aspect maximum height constraint coordinate.
      */
     @Value("${yMax}")
     private Integer yMax;
 
     /**
-     * Native utility wrapper used to convert openCV Mat matrix files into buffered images.
+     * Native translation helper tool utilizing direct buffers to remap OpenCV Mat matrices into standard BufferedImages.
      */
     private final MatToBufImg matToBufImg;
 
     /**
-     * Source matrix image reference placeholder frame structure for OpenCV.
+     * Primary source frame asset tracking reference point for openCV matrix operations.
      */
     private Mat source;
 
     /**
-     * Target matrix scaled destination frame placeholder layout for OpenCV image transformation.
+     * Internal scaling destination structural placeholder context matrix for geometric spatial updates.
      */
     private final Mat dest;
 
     /**
-     * Target event type constraint state tracking flag identifier.
+     * Currently isolated database classification criteria tracking token parameter.
      */
     private String currentEventType;
 
     /**
-     * Main UI display frame constructor setting standardized fonts and graphics flags.
+     * Instantiates the PlayUI component bean, setting uniform Japanese rendering font definitions, initialization buffers, and
+     * default audio normalization array structures.
      */
     public PlayUI() {
-        final var exampleFontSettings = new FontUIResource(new Font("MS Mincho", Font.PLAIN, 20));
-        final var keys = UIManager.getDefaults().keys();
-        while (keys.hasMoreElements()) {
-            final var key = keys.nextElement();
-            final var value = UIManager.get(key);
-            if (value instanceof javax.swing.plaf.FontUIResource) {
-                UIManager.put(key, exampleFontSettings);
+        final var customFontResource = new FontUIResource(new Font("MS Mincho", Font.PLAIN, 20));
+        final var defaultKeys = UIManager.getDefaults().keys();
+        while (defaultKeys.hasMoreElements()) {
+            final var activeKey = defaultKeys.nextElement();
+            final var activeValue = UIManager.get(activeKey);
+            if (activeValue instanceof javax.swing.plaf.FontUIResource) {
+                UIManager.put(activeKey, customFontResource);
             }
         }
-        booster = new UiBooster(UiBoosterOptions.Theme.SWING);
-        matToBufImg = new MatToBufImg();
-        matToBufImg.init();
-        source = null;
-        dest = new Mat();
+        this.booster = new UiBooster(UiBoosterOptions.Theme.SWING);
+        this.matToBufImg = new MatToBufImg();
+        this.matToBufImg.init();
+        this.source = null;
+        this.dest = new Mat();
+
+        this.volumeOptionsList = List.of("0dB (Default)", "5dB", "10dB", "15dB", "20dB", "25dB", "30dB");
+        this.selectedVolumeAdjustment = "0dB";
     }
 
     /**
-     * Dynamically loads environmental path parameters for the chosen active device camera workspace.
+     * Binds and configures path translation arrays mapping back to the targeted hardware camera engine node.
      *
-     * @param targetCamera The system reference key string matching target configurations.
+     * @param targetCamera Absolute alphanumeric tracking key defining the requested workspace profile target.
      */
     private void activateCameraWorkspace(final String targetCamera) {
         this.currentDeviceName = targetCamera;
@@ -200,87 +227,87 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     }
 
     /**
-     * Translates and normalizes file paths using regex routines to clean double-slashes common inside raw IP camera logging
-     * outputs.
+     * Sanitizes duplicate edge sequence forward slashes and remaps network logging strings back to true local disk paths.
      *
-     * @param rawPath The original unmapped asset string location from storage metadata.
-     * @return Normalized and fully qualified target location matching system disk paths.
+     * @param rawPath Unformatted log data tracking key specifying the file's remote index position.
+     * @return Cleaned, cross-platform local system file path pointer location.
      */
     private String translatePath(final String rawPath) {
         if (rawPath == null || rawPath.isBlank()) {
             return "";
         }
-        var sanitized = rawPath.replaceAll("/{2,}", "/");
+        var normalizedString = rawPath.replaceAll("/{2,}", "/");
 
         if (remoteFromPath != null && !remoteFromPath.isBlank() && remoteToPath != null) {
-            sanitized = sanitized.replace(remoteFromPath, remoteToPath);
+            normalizedString = normalizedString.replace(remoteFromPath, remoteToPath);
         }
 
-        return sanitized.replaceAll("/{2,}", "/");
+        return normalizedString.replaceAll("/{2,}", "/");
     }
 
     /**
-     * Sync data model maps and state metrics with target database storage configurations.
+     * Flushes localized UI state vectors and pulls updated event blocks out of the relational repository layer.
      */
     public void refresh() {
-        buffers = play.loadMotionBuffers();
+        this.buffers = play.loadMotionBuffers();
 
         if (currentEventType == null && play.getSmtpUiTypes() != null && !play.getSmtpUiTypes().isEmpty()) {
-            currentEventType = play.getSmtpUiTypes().get(0);
+            this.currentEventType = play.getSmtpUiTypes().get(0);
         }
 
         if ("Motion".equalsIgnoreCase(currentEventType)) {
-            images = play.loadMotionEvents();
+            this.images = play.loadMotionEvents();
         } else {
-            images = play.loadSmtpMotionEvents(currentEventType);
+            this.images = play.loadSmtpMotionEvents(currentEventType);
         }
 
-        elements = new ArrayList<>();
-        timestamps = new HashMap<>();
-        var i = 0;
-        for (final var image : images) {
-            timestamps.put(play.formatTimestamp(image.get(0).getEventTime()), i++);
+        this.elements = new ArrayList<>();
+        this.timestamps = new HashMap<>();
+
+        var counter = 0;
+        for (final var dynamicEventGroup : images) {
+            timestamps.put(play.formatTimestamp(dynamicEventGroup.get(0).getEventTime()), counter++);
         }
-        for (i = images.size(); i-- > 0;) {
-            elements.add(play.formatTimestamp(images.get(i).get(0).getEventTime()));
+        for (var lookupIdx = images.size(); lookupIdx-- > 0;) {
+            elements.add(play.formatTimestamp(images.get(lookupIdx).get(0).getEventTime()));
         }
 
-        // Safety Guard: Force index inside the ceiling boundary when structural list sizes mutate
-        index = images.isEmpty() ? 0 : images.size() - 1;
+        this.index = images.isEmpty() ? 0 : images.size() - 1;
     }
 
     /**
-     * Initial startup controller managing graphical window rendering contexts.
+     * Builds, constructs, and pops the interactive swing interface layout environment into life.
      *
-     * @return Execution result tracking confirmation code.
-     * @throws Exception Mapping execution handling channel issues.
+     * @return Process termination execution status tracking flag code.
+     * @throws Exception Channel synchronization and system rendering boundary faults.
      */
     @Override
     public Integer call() throws Exception {
         if (devicesList == null || devicesList.isEmpty()) {
-            throw new IllegalStateException("The devices.list configuration entry cannot be blank or missing.");
+            throw new IllegalStateException("Critical initialization parameter missing: devices.list cannot be blank.");
         }
 
         activateCameraWorkspace(devicesList.get(0));
 
-        final var dialog = booster.showWaitingDialog("Operation", currentDeviceName);
-        dialog.addToLargeMessage("Refresh data");
+        final var progressionDialog = booster.showWaitingDialog("Operation", currentDeviceName);
+        progressionDialog.addToLargeMessage("Refresh data");
         refresh();
-        dialog.close();
+        progressionDialog.close();
 
-        final var initialIndex = images.isEmpty() ? 0 : images.size() - 1;
-        final var initialPreviewFile = images.isEmpty() ? "" : translatePath(images.get(initialIndex).get(1).getEventData());
+        final var baseStartupIndex = images.isEmpty() ? 0 : images.size() - 1;
+        final var startupThumbnailFile = images.isEmpty() ? "" : translatePath(images.get(baseStartupIndex).get(1).getEventData());
 
         booster.createForm("Alarmbian Multi-Cam Console").
-                addCustomElement(new IconFormElement(getImageIcon(null, initialPreviewFile))).
+                addCustomElement(new IconFormElement(getImageIcon(null, startupThumbnailFile))).
                 setID("image").
                 startRow().
                 addSelection("Active Camera", devicesList).setID("activeCamera").
                 addSelection("Events", elements).setID("events").
-                addText("Duration", images.isEmpty() ? "00:00:00" : play.formatDuration(images.get(initialIndex).get(0).getEventTime(), images.get(initialIndex).get(2).getEventTime()), true).setID("duration").
+                addText("Duration", images.isEmpty() ? "00:00:00" : play.formatDuration(images.get(baseStartupIndex).get(0).getEventTime(), images.get(baseStartupIndex).get(2).getEventTime()), true).setID("duration").
                 addText("Before", String.valueOf(playBefore)).setID("before").
                 addText("After", String.valueOf(playAfter)).setID("after").
                 addSelection("Event Type", play.getSmtpUiTypes()).setID("eventType").
+                addSelection("Volume Boost", volumeOptionsList).setID("volumeBoost").
                 endRow().
                 startRow().
                 addButton("Play", () -> {
@@ -298,186 +325,213 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     }
 
     /**
-     * Map target video files or image frames into valid Swing Icon components.
+     * Loads, normalizes, and rescales targeted raw file frame graphics into a renderable Swing ImageIcon asset.
      *
-     * @param form The active parent UI booster layout context reference.
-     * @param fileName The absolute path pointing to targeted disk image assets.
-     * @return Formatted Icon asset ready for layout rendering panels.
+     * @param structuralForm Root display panel wrapper form context.
+     * @param diskTargetFileName Complete absolute path referencing localized JPEG media assets.
+     * @return Fully structured Swing ImageIcon wrapped object container.
      */
-    public ImageIcon getImageIcon(final Form form, final String fileName) {
-        if (fileName == null || fileName.isBlank() || !(new File(fileName).exists())) {
-            log.warn("Target preview layout asset missing on disk: {}", fileName);
+    public ImageIcon getImageIcon(final Form structuralForm, final String diskTargetFileName) {
+        if (diskTargetFileName == null || diskTargetFileName.isBlank() || !(new File(diskTargetFileName).exists())) {
+            log.warn("Target display thumbnail path unavailable on disk layout structures: {}", diskTargetFileName);
             return new ImageIcon(new BufferedImage(xMax, yMax, BufferedImage.TYPE_3BYTE_BGR));
         }
-        var imageIcon = (ImageIcon) null;
-        source = Imgcodecs.imread(fileName);
-        var type = BufferedImage.TYPE_BYTE_GRAY;
-        if (source.channels() > 1) {
-            type = BufferedImage.TYPE_3BYTE_BGR;
+
+        var completedDisplayIcon = (ImageIcon) null;
+        this.source = Imgcodecs.imread(diskTargetFileName);
+
+        var targetingColorSpacePlane = BufferedImage.TYPE_BYTE_GRAY;
+        if (this.source.channels() > 1) {
+            targetingColorSpacePlane = BufferedImage.TYPE_3BYTE_BGR;
         }
-        if (source.cols() > xMax) {
-            Imgproc.resize(source, dest, new Size(xMax, yMax), 0, 0, Imgproc.INTER_LINEAR);
-            source.release();
-            imageIcon = new ImageIcon(matToBufImg.execute(dest));
-            dest.release();
+
+        if (this.source.cols() > xMax) {
+            Imgproc.resize(this.source, this.dest, new Size(xMax, yMax), 0, 0, Imgproc.INTER_LINEAR);
+            this.source.release();
+            completedDisplayIcon = new ImageIcon(matToBufImg.execute(this.dest));
+            this.dest.release();
         } else {
-            imageIcon = new ImageIcon(matToBufImg.execute(source));
-            source.release();
+            completedDisplayIcon = new ImageIcon(matToBufImg.execute(this.source));
+            this.source.release();
         }
-        return imageIcon;
+        return completedDisplayIcon;
     }
 
     /**
-     * Refresh text layout parameter components tracking tracking metrics.
+     * Performs clean text component data updates tracking current frame tracking spans.
      *
-     * @param form Base container tracking structural frame layouts.
+     * @param containerForm Active operational view workspace tracking element layout.
      */
-    public void update(final Form form) {
+    public void update(final Form containerForm) {
         if (!images.isEmpty() && index < images.size()) {
-            final var duration = (TextFormElement) form.getById("duration");
-            duration.setValue(play.formatDuration(images.get(index).get(0).getEventTime(), images.get(index).get(2).getEventTime()));
+            final var numericalDurationField = (TextFormElement) containerForm.getById("duration");
+            numericalDurationField.setValue(play.formatDuration(images.get(index).get(0).getEventTime(), images.get(index).get(2).getEventTime()));
         }
     }
 
     /**
-     * Process chunk extractions through an external localized FFmpeg pipeline context execution loop.
+     * Parses the external space-delimited configuration template, interpolates localized timing offsets and destination paths, and
+     * forks an externalized FFmpeg task to archive independent event chunks.
      *
-     * @param fileName Source video file location.
-     * @param start Execution timing offset baseline.
-     * @param duration Interval length segment tracking variable.
-     * @param outputFileName Target destination coordinate assignment mapping on system storage.
+     * @param sourceVideoFile High-resolution target stream source video sequence location path.
+     * @param offsetStart Baseline second offset index detailing slice start.
+     * @param segmentLength Span width duration metric tracking clipping end windows.
+     * @param systemExportFile Absolute target destination file system path coordinates.
      */
-    public void saveFile(final String fileName, final long start, final long duration, final String outputFileName) {
-        final var command = new ArrayList<String>();
-        command.add("ffmpeg");
-        command.add("-ss");
-        command.add(String.valueOf(start));
-        command.add("-i");
-        command.add(fileName);
-        command.add("-t");
-        command.add(String.valueOf(duration));
-        command.add("-c");
-        command.add("copy");
-        command.add(outputFileName);
-        final var pb = new ProcessBuilder(command);
-        pb.redirectErrorStream(true);
-        try {
-            final var pc = pb.start();
-            try (final var inputStatus = pc.getInputStream(); final var readStatus = new BufferedReader(new InputStreamReader(inputStatus))) {
-                while (readStatus.readLine() != null) {
-                    // Drain native buffers completely
-                }
-            }
-            try {
-                pc.waitFor();
-                pc.destroy();
-                log.debug("File saved successfully to {}", outputFileName);
-            } catch (final InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException("Process tracking context execution failure interrupted", e);
-            }
-        } catch (final IOException e) {
-            throw new RuntimeException("Failed to run local structural process engine clip commands", e);
-        }
-    }
-
-    /**
-     * Helper formatting metric tracking temporal values inside playback parameter strings.
-     *
-     * @param totalSeconds Raw baseline timestamp value metrics.
-     * @return Normalized string representation tracking element parameters.
-     */
-    private String formatAbsoluteTime(final long totalSeconds) {
-        final var positiveSeconds = Math.max(0, totalSeconds);
-        final var hours = positiveSeconds / 3600;
-        final var minutes = (positiveSeconds % 3600) / 60;
-        final var seconds = positiveSeconds % 60;
-        return String.format("%02d:%02d:%02d", hours, minutes, seconds);
-    }
-
-    /**
-     * Triggers active FFplay rendering environments utilizing prioritized real-time performance constraints.
-     *
-     * @param fileName Targeted raw track layout file asset destination location.
-     * @param start Numeric timestamp offset metric track index entry.
-     * @param duration Sequence length scope evaluation window bounds.
-     */
-    public void playFile(final String fileName, final long start, final long duration) {
-        final var seekStr = formatAbsoluteTime(start);
-        final var durationStr = formatAbsoluteTime(duration);
+    public void saveFile(final String sourceVideoFile, final long offsetStart, final long segmentLength, final String systemExportFile) {
+        final var calculatedSeekTokenStr = String.valueOf(offsetStart);
+        final var calculatedDurationTokenStr = String.valueOf(segmentLength);
 
         if (log.isDebugEnabled()) {
             log.debug("""
-                     PlayUI Diagnostics Execution Context:
-                       Target File: {}
-                       Raw Seconds: Start={}, Duration={}
-                       Seek String: {} (-ss)
-                       Clip Length: {} (-t)
-                       File Exists: {}""",
-                    fileName, start, duration, seekStr, durationStr, new File(fileName).exists());
+                     PlayUI Externalized Save Diagnostics Context:
+                       Source File: {}
+                       Offset Start: {}s
+                       Duration: {}s
+                       Export Target: {}""",
+                    sourceVideoFile, calculatedSeekTokenStr, calculatedDurationTokenStr, systemExportFile);
         }
 
-        final var command = new ArrayList<String>();
-        command.add("ffplay");
-        command.add("-autoexit");
-        command.add("-window_title");
-        command.add("Alarmbian Event Playback View: " + currentDeviceName);
+        // Regex split on sequential whitespace elements captures individual options array cleanly
+        final var segmentedTemplateTokens = ffmpegCommandTemplate.split("\\s+");
+        final var generationProcessList = new ArrayList<String>();
 
-        command.add("-fflags");
-        command.add("+nobuffer+fastseek");
-        command.add("-probesize");
-        command.add("32");
-        command.add("-analyzeduration");
-        command.add("0");
+        for (final var rawTokenString : segmentedTemplateTokens) {
+            if (rawTokenString == null || rawTokenString.isBlank()) {
+                continue;
+            }
 
-        command.add("-bytes");
-        command.add("1");
+            var transformedParameterToken = rawTokenString.trim();
+            if (transformedParameterToken.contains("%SEEK%")) {
+                transformedParameterToken = transformedParameterToken.replace("%SEEK%", calculatedSeekTokenStr);
+            } else if (transformedParameterToken.contains("%FILE%")) {
+                transformedParameterToken = transformedParameterToken.replace("%FILE%", sourceVideoFile);
+            } else if (transformedParameterToken.contains("%DURATION%")) {
+                transformedParameterToken = transformedParameterToken.replace("%DURATION%", calculatedDurationTokenStr);
+            } else if (transformedParameterToken.contains("%EXPORT%")) {
+                transformedParameterToken = transformedParameterToken.replace("%EXPORT%", systemExportFile);
+            }
 
-        command.add("-ss");
-        command.add(seekStr);
+            generationProcessList.add(transformedParameterToken);
+        }
 
-        command.add("-i");
-        command.add(fileName);
-
-        command.add("-t");
-        command.add(durationStr);
-
-        command.add("-sn");
-        command.add("-sync");
-        command.add("video");
-        command.add("-framedrop");
-        command.add("-infbuf");
-
-        final var pb = new ProcessBuilder(command);
-        pb.inheritIO();
+        final var processingBuilderContext = new ProcessBuilder(generationProcessList);
+        processingBuilderContext.redirectErrorStream(true);
 
         try {
-            log.info("Spawning native ffplay instance for file: {}", fileName);
-            final var pc = pb.start();
+            log.info("Spawning externalized ffmpeg archive segment extraction sequence...");
+            final var localSystemProcess = processingBuilderContext.start();
+
+            // Fully consume standard output/error stream allocation buffers to maintain OS kernel stability
+            try (final var underlyingStreamChannel = localSystemProcess.getInputStream(); final var terminalOutputReader = new BufferedReader(new InputStreamReader(underlyingStreamChannel))) {
+                while (terminalOutputReader.readLine() != null) {
+                    // Drain buffer
+                }
+            }
             try {
-                final var exitCode = pc.waitFor();
-                log.debug("Native ffplay execution terminated with exit code: {}", exitCode);
-                pc.destroy();
+                final var pipelineExitResponseCode = localSystemProcess.waitFor();
+                log.debug("Externalized archive slice completed. Native process response code: {}", pipelineExitResponseCode);
+                localSystemProcess.destroy();
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
-                log.error("Playback tracking thread was interrupted natively", e);
-                throw new RuntimeException("Playback tracking thread was interrupted natively", e);
+                log.error("Active archive extraction processing context thread bounds interrupted", e);
+                throw new RuntimeException("Media pipeline file extraction operation interrupted defensively", e);
             }
         } catch (final IOException e) {
-            log.error("Failed to initialize system execution pipeline for ffplay target: {}", fileName, e);
-            throw new RuntimeException("Failed to initialize system execution pipeline for ffplay", e);
+            log.error("System structural tracking failure executing file extraction loops", e);
+            throw new RuntimeException("System IO crash encountered trying to fork runtime extraction processes", e);
         }
     }
 
     /**
-     * Standard string digit parsing structural validation verification method.
+     * Formats raw second integers into standard absolute time masks required by media options.
      *
-     * @param str Raw string characters.
-     * @return Validation status confirmation true if formatting matches valid numerical ranges.
+     * @param totalSeconds Chronological duration interval length tracking parameter.
+     * @return Formatted character sequence matching time masks.
      */
-    public boolean isInteger(final String str) {
+    private String formatAbsoluteTime(final long totalSeconds) {
+        final var absoluteTimeAnchor = Math.max(0, totalSeconds);
+        final var evaluatedHours = absoluteTimeAnchor / 3600;
+        final var evaluatedMinutes = (absoluteTimeAnchor % 3600) / 60;
+        final var evaluatedSeconds = absoluteTimeAnchor % 60;
+        return String.format("%02d:%02d:%02d", evaluatedHours, evaluatedMinutes, evaluatedSeconds);
+    }
+
+    /**
+     * Parses the external space-delimited configuration template, interpolates active timing, path, and selected dynamic volume
+     * levels, then executes the hardware accelerated playback.
+     *
+     * @param mediaStreamFile Absolute local path location referencing target archive records.
+     * @param executionSeekStart Number of seconds to fast-forward into the target file prior to opening output pipelines.
+     * @param segmentPlayDuration Total track viewing scope width specified in total running seconds.
+     */
+    public void playFile(final String mediaStreamFile, final long executionSeekStart, final long segmentPlayDuration) {
+        final var calculatedSeekTokenStr = formatAbsoluteTime(executionSeekStart);
+        final var calculatedDurationTokenStr = formatAbsoluteTime(segmentPlayDuration);
+
+        if (log.isDebugEnabled()) {
+            log.debug("""
+                     PlayUI Externalized Diagnostics Context:
+                       Target File: {}
+                       Raw Seconds: Start={}, Duration={}
+                       Seek String: {}
+                       Clip Length: {}
+                       Selected Volume: {}""",
+                    mediaStreamFile, executionSeekStart, segmentPlayDuration, calculatedSeekTokenStr, calculatedDurationTokenStr, selectedVolumeAdjustment);
+        }
+
+        final var segmentedTemplateTokens = ffplayCommandTemplate.split("\\s+");
+        final var generationProcessList = new ArrayList<String>();
+
+        for (final var rawTokenString : segmentedTemplateTokens) {
+            if (rawTokenString == null || rawTokenString.isBlank()) {
+                continue;
+            }
+
+            var transformedParameterToken = rawTokenString.trim();
+            if (transformedParameterToken.contains("%SEEK%")) {
+                transformedParameterToken = transformedParameterToken.replace("%SEEK%", calculatedSeekTokenStr);
+            } else if (transformedParameterToken.contains("%FILE%")) {
+                transformedParameterToken = transformedParameterToken.replace("%FILE%", mediaStreamFile);
+            } else if (transformedParameterToken.contains("%DURATION%")) {
+                transformedParameterToken = transformedParameterToken.replace("%DURATION%", calculatedDurationTokenStr);
+            } else if (transformedParameterToken.contains("%VOLUME%")) {
+                transformedParameterToken = transformedParameterToken.replace("%VOLUME%", selectedVolumeAdjustment);
+            }
+
+            generationProcessList.add(transformedParameterToken);
+        }
+
+        final var executableProcessBuilder = new ProcessBuilder(generationProcessList);
+        executableProcessBuilder.inheritIO();
+
         try {
-            Integer.valueOf(str);
+            log.info("Spawning externalized hardware-accelerated ffplay process sequence...");
+            final var activeRunningProcessInstance = executableProcessBuilder.start();
+            try {
+                final var pipelineExitResponseCode = activeRunningProcessInstance.waitFor();
+                log.debug("Externalized media window destroyed. Native pipeline exit code mapping: {}", pipelineExitResponseCode);
+                activeRunningProcessInstance.destroy();
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.error("Active playback pipeline processing context thread bounds interrupted", e);
+                throw new RuntimeException("Media rendering subtask thread instance aborted execution states", e);
+            }
+        } catch (final IOException e) {
+            log.error("System structural tracking failure executing platform process execution loops", e);
+            throw new RuntimeException("Native task launch processing fail during ffplay invocation steps", e);
+        }
+    }
+
+    /**
+     * Checks if a provided string variable parses into valid integer formats.
+     *
+     * @param validationInputString Raw characters under tracking review.
+     * @return True if formatting matches valid numerical properties.
+     */
+    public boolean isInteger(final String validationInputString) {
+        try {
+            Integer.valueOf(validationInputString);
             return true;
         } catch (final NumberFormatException e) {
             return false;
@@ -485,32 +539,32 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
     }
 
     /**
-     * Value mutation trigger handling routing managing form state alterations defensively.
+     * Listens to graphical field mutations and updates component maps and display canvases.
      *
-     * @param fe Active target interface component reference token tracker.
-     * @param o Evaluated value transformation wrapper mapping parameters.
-     * @param form Current parent display container structural element reference tracker.
+     * @param originatingElement Reference pointer matching mutated elements.
+     * @param transformationValue Payload tracking new settings selections.
+     * @param structuralActiveForm Global UI booster structural window element frame reference.
      */
     @Override
-    public void onChange(final FormElement fe, final Object o, final Form form) {
-        final var label = (JLabel) form.getById("image").getValue();
-        switch (fe.getId()) {
+    public void onChange(final FormElement originatingElement, final Object transformationValue, final Form structuralActiveForm) {
+        final var graphicalDisplayCanvasLabel = (JLabel) structuralActiveForm.getById("image").getValue();
+        switch (originatingElement.getId()) {
             case "activeCamera" -> {
-                final var selectedCam = (String) o;
-                if (selectedCam != null && !selectedCam.isBlank()) {
-                    activateCameraWorkspace(selectedCam.trim());
+                final var parsedCameraKey = (String) transformationValue;
+                if (parsedCameraKey != null && !parsedCameraKey.isBlank()) {
+                    activateCameraWorkspace(parsedCameraKey.trim());
                     refresh();
 
-                    final var selection = form.getById("events").toSelection();
-                    selection.setPossibilities(elements);
+                    final var dynamicDropdownSelection = structuralActiveForm.getById("events").toSelection();
+                    dynamicDropdownSelection.setPossibilities(elements);
 
                     if (!images.isEmpty()) {
                         index = images.size() - 1;
-                        label.setIcon(getImageIcon(form, translatePath(images.get(index).get(1).getEventData())));
+                        graphicalDisplayCanvasLabel.setIcon(getImageIcon(structuralActiveForm, translatePath(images.get(index).get(1).getEventData())));
                     } else {
-                        label.setIcon(getImageIcon(form, null));
-                        final var duration = (TextFormElement) form.getById("duration");
-                        duration.setValue("00:00:00");
+                        graphicalDisplayCanvasLabel.setIcon(getImageIcon(structuralActiveForm, null));
+                        final var executionDurationBox = (TextFormElement) structuralActiveForm.getById("duration");
+                        executionDurationBox.setValue("00:00:00");
                     }
                 }
             }
@@ -518,97 +572,104 @@ public class PlayUI implements Callable<Integer>, FormElementChangeListener {
                 if (images.isEmpty() || index >= images.size()) {
                     break;
                 }
-                final var bufferStart = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
-                final var motionStart = images.get(index).get(0).getEventTime().toInstant();
-                final var motionStop = images.get(index).get(2).getEventTime().toInstant();
+                final var timelineBufferHeadTime = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
+                final var actualMotionStartTimeMarker = images.get(index).get(0).getEventTime().toInstant();
+                final var actualMotionEndTimeMarker = images.get(index).get(2).getEventTime().toInstant();
 
-                var startSeconds = Duration.between(bufferStart, motionStart).minusSeconds(playBefore).getSeconds();
-                if (startSeconds < 0) {
-                    startSeconds = 0;
+                var completeStartOffsetInSeconds = Duration.between(timelineBufferHeadTime, actualMotionStartTimeMarker).minusSeconds(playBefore).getSeconds();
+                if (completeStartOffsetInSeconds < 0) {
+                    completeStartOffsetInSeconds = 0;
                 }
 
-                final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
-                final var fileName = translatePath(images.get(index).get(0).getEventData());
+                final var completeRunningDurationSpan = Duration.between(actualMotionStartTimeMarker, actualMotionEndTimeMarker).plusSeconds(playAfter);
+                final var absoluteMediaDiskLocation = translatePath(images.get(index).get(0).getEventData());
 
-                playFile(fileName, startSeconds, duration.getSeconds());
+                playFile(absoluteMediaDiskLocation, completeStartOffsetInSeconds, completeRunningDurationSpan.getSeconds());
             }
             case "save" -> {
                 if (images.isEmpty() || index >= images.size()) {
                     break;
                 }
-                final var bufferStart = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
-                final var motionStart = images.get(index).get(0).getEventTime().toInstant();
-                final var motionStop = images.get(index).get(2).getEventTime().toInstant();
+                final var timelineBufferHeadTime = buffers.get(images.get(index).get(0).getEventData()).getEventTime().toInstant();
+                final var actualMotionStartTimeMarker = images.get(index).get(0).getEventTime().toInstant();
+                final var actualMotionEndTimeMarker = images.get(index).get(2).getEventTime().toInstant();
 
-                var startSeconds = Duration.between(bufferStart, motionStart).minusSeconds(playBefore).getSeconds();
-                if (startSeconds < 0) {
-                    startSeconds = 0;
+                var completeStartOffsetInSeconds = Duration.between(timelineBufferHeadTime, actualMotionStartTimeMarker).minusSeconds(playBefore).getSeconds();
+                if (completeStartOffsetInSeconds < 0) {
+                    completeStartOffsetInSeconds = 0;
                 }
 
-                final var duration = Duration.between(motionStart, motionStop).plusSeconds(playAfter);
-                final var fileName = translatePath(images.get(index).get(0).getEventData());
-                final var file = new File(images.get(index).get(1).getEventData().replace("jpg", "mkv"));
-                final var saveFileName = file.getName();
+                final var completeRunningDurationSpan = Duration.between(actualMotionStartTimeMarker, actualMotionEndTimeMarker).plusSeconds(playAfter);
+                final var absoluteMediaDiskLocation = translatePath(images.get(index).get(0).getEventData());
+                final var localFileObjectTarget = new File(images.get(index).get(1).getEventData().replace("jpg", "mkv"));
+                final var cleanOutputStringFilename = localFileObjectTarget.getName();
 
-                saveFile(fileName, startSeconds, duration.getSeconds(), String.format("%s%s%s", localPath,
-                        File.separator, saveFileName));
+                saveFile(absoluteMediaDiskLocation, completeStartOffsetInSeconds, completeRunningDurationSpan.getSeconds(),
+                        String.format("%s%s%s", localPath, File.separator, cleanOutputStringFilename));
             }
             case "events" -> {
-                final var value = (String) form.getById("events").getValue();
-                if (!StringUtils.isEmpty(value) && timestamps.containsKey(value)) {
-                    final var targetIdx = timestamps.get(value);
-                    if (targetIdx < images.size()) {
-                        index = targetIdx;
-                        label.setIcon(getImageIcon(form, translatePath(images.get(index).get(1).getEventData())));
+                final var activeTargetTimestampSelection = (String) structuralActiveForm.getById("events").getValue();
+                if (!StringUtils.isEmpty(activeTargetTimestampSelection) && timestamps.containsKey(activeTargetTimestampSelection)) {
+                    final var retrievedTimelineCoordinateIndex = timestamps.get(activeTargetTimestampSelection);
+                    if (retrievedTimelineCoordinateIndex < images.size()) {
+                        this.index = retrievedTimelineCoordinateIndex;
+                        graphicalDisplayCanvasLabel.setIcon(getImageIcon(structuralActiveForm, translatePath(images.get(index).get(1).getEventData())));
                     }
                 }
             }
             case "eventType" -> {
-                final var selectedType = (String) o;
-                if (selectedType != null && !selectedType.isBlank()) {
-                    currentEventType = selectedType.trim();
+                final var updatedTypeFilterToken = (String) transformationValue;
+                if (updatedTypeFilterToken != null && !updatedTypeFilterToken.isBlank()) {
+                    this.currentEventType = updatedTypeFilterToken.trim();
                     refresh();
-                    final var selection = form.getById("events").toSelection();
-                    selection.setPossibilities(elements);
+                    final var targetedDropdownComponent = structuralActiveForm.getById("events").toSelection();
+                    targetedDropdownComponent.setPossibilities(elements);
 
                     if (!images.isEmpty()) {
-                        index = images.size() - 1;
-                        label.setIcon(getImageIcon(form, translatePath(images.get(index).get(1).getEventData())));
+                        this.index = images.size() - 1;
+                        graphicalDisplayCanvasLabel.setIcon(getImageIcon(structuralActiveForm, translatePath(images.get(index).get(1).getEventData())));
                     } else {
-                        label.setIcon(getImageIcon(form, null));
+                        graphicalDisplayCanvasLabel.setIcon(getImageIcon(structuralActiveForm, null));
                     }
+                }
+            }
+            case "volumeBoost" -> {
+                final var rawSelectedVolume = (String) transformationValue;
+                if (rawSelectedVolume != null && !rawSelectedVolume.isBlank()) {
+                    this.selectedVolumeAdjustment = rawSelectedVolume.split("\\s+")[0].trim();
+                    log.debug("Dynamic volume tracking buffer set to: {}", selectedVolumeAdjustment);
                 }
             }
             case "refresh" -> {
                 refresh();
-                final var selection = form.getById("events").toSelection();
+                final var selection = structuralActiveForm.getById("events").toSelection();
                 selection.setPossibilities(elements);
             }
             case "duration" -> {
             }
             case "before" -> {
-                final var before = form.getById("before").asString();
-                if (before != null && !before.isEmpty()) {
-                    if (isInteger(before)) {
-                        playBefore = Integer.valueOf(before);
+                final var rawInputTextCharacters = structuralActiveForm.getById("before").asString();
+                if (rawInputTextCharacters != null && !rawInputTextCharacters.isEmpty()) {
+                    if (isInteger(rawInputTextCharacters)) {
+                        this.playBefore = Integer.valueOf(rawInputTextCharacters);
                     } else {
                         new UiBooster().showErrorDialog("Only integer values allowed.", "ERROR");
                     }
                 }
             }
             case "after" -> {
-                final var after = form.getById("after").asString();
-                if (after != null && !after.isEmpty()) {
-                    if (isInteger(after)) {
-                        playAfter = Integer.valueOf(after);
+                final var rawInputTextCharacters = structuralActiveForm.getById("after").asString();
+                if (rawInputTextCharacters != null && !rawInputTextCharacters.isEmpty()) {
+                    if (isInteger(rawInputTextCharacters)) {
+                        this.playAfter = Integer.valueOf(rawInputTextCharacters);
                     } else {
                         new UiBooster().showErrorDialog("Only integer values allowed.", "ERROR");
                     }
                 }
             }
             default ->
-                booster.showErrorDialog(String.format("%s onChange not handled", fe.getId()), "Error");
+                booster.showErrorDialog(String.format("Event element id target mapping %s change not explicitly handled", originatingElement.getId()), "Error");
         }
-        update(form);
+        update(structuralActiveForm);
     }
 }
