@@ -115,7 +115,7 @@ to make your cam1.properties configuration (repeat for each camera using unique 
     camera.mainstream.password=password
     ```
 * `sudo chmod 600 /etc/alarmbian/server-secrets.properties`
-* `sudo chown servadmin:servadmin /etc/alarmbian/server-secrets.properties`
+* `sudo chown username:username /etc/alarmbian/server-secrets.properties`
 * `java -Djava.library.path=/home/username/opencv/build/lib -jar server-1.0.0-SNAPSHOT.jar --spring.config.location=cam1.properties`
 * ^C to exit app
 * If you see a SIGSEGV don't worry because ^C will not be used for shutdown.
@@ -147,6 +147,6 @@ videos from currently recording files there will be no index until file is close
     spring.datasource.password=sa
     ```
 * `sudo chmod 600 /etc/alarmbian/client-secrets.properties`
-* `sudo chown servadmin:servadmin /etc/alarmbian/client-secrets.properties`
+* `sudo chown username:username /etc/alarmbian/client-secrets.properties`
 * Use [application.properties](https://raw.githubusercontent.com/sgjava/alarmbian/refs/heads/main/client/src/main/resources/application.properties) to make your own client.properties
 * `java -Djava.library.path=/home/username/opencv/build/lib -Dspring.config.location=file:client.properties -jar client/target/client-1.0.0-SNAPSHOT.jar`
