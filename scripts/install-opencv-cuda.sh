@@ -1,10 +1,10 @@
 #!/bin/bash
 #
-# Created on May 24, 2026
+# Created on July 1, 2026
 #
 # @author: sgoldsmith
 #
-# Build and install OpenCV from source using SDKMAN Ant/Java.
+# Build and install OpenCV from source using SDKMAN Ant/Java and CUDA 13.x.
 # Clones repository source trees directly into $HOME.
 #
 # Steven P. Goldsmith
@@ -21,26 +21,18 @@ export CXX=/usr/bin/g++
 INSTALL_PREFIX="/usr/local"
 
 echo "--------------------------------------------------"
-echo "STEP 1: Purge Old OpenCV Installation Artifacts"
-echo "--------------------------------------------------"
-echo "Removing old libraries and jars from $INSTALL_PREFIX..."
-sudo rm -rf "$INSTALL_PREFIX/include/opencv4"
-sudo rm -f "$INSTALL_PREFIX/lib/libopencv_"*
-sudo rm -rf "$INSTALL_PREFIX/share/opencv4"
-sudo rm -rf "$INSTALL_PREFIX/share/java/opencv4"
-
-echo "--------------------------------------------------"
-echo "STEP 2: Install System Dependencies"
+echo "STEP 1: Install System Dependencies"
 echo "--------------------------------------------------"
 sudo apt update
 sudo apt install -y \
     build-essential cmake ninja-build pkg-config git \
     libjpeg-dev libpng-dev libtiff-dev libwebp-dev libv4l-dev \
     libatlas-base-dev libtbb-dev libgstreamer1.0-dev \
-    libgstreamer-plugins-base1.0-dev libva-dev libdrm-dev
+    libgstreamer-plugins-base1.0-dev libva-dev libdrm-dev \
+    libprotobuf-dev protobuf-compiler
 
 echo "--------------------------------------------------"
-echo "STEP 3: Clone OpenCV (master)"
+echo "STEP 2: Clone OpenCV 5.0 (master)"
 echo "--------------------------------------------------"
 cd "$HOME"
 rm -rf opencv opencv_contrib
@@ -48,7 +40,7 @@ git clone --depth 1 https://github.com/opencv/opencv.git
 git clone --depth 1 https://github.com/opencv/opencv_contrib.git
 
 echo "--------------------------------------------------"
-echo "STEP 4: Resolve SDKMAN Environment paths"
+echo "STEP 3: Resolve SDKMAN Environment paths"
 echo "--------------------------------------------------"
 if [ -f /etc/environment ]; then
     source /etc/environment
@@ -72,7 +64,7 @@ echo "Using Java Home: $JAVA_HOME"
 echo "Using Ant Executable: $ANT_BIN"
 
 echo "--------------------------------------------------"
-echo "STEP 5: Configure and Build"
+echo "STEP 4: Configure and Build"
 echo "--------------------------------------------------"
 rm -rf "$HOME/opencv/build"
 mkdir -p "$HOME/opencv/build"
@@ -85,17 +77,30 @@ cmake -G Ninja \
     -D CMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -D OPENCV_EXTRA_MODULES_PATH="$HOME/opencv_contrib/modules" \
     -D OPENCV_SKIP_COMPILER_CHECKS=ON \
+    -D WITH_CUDA=ON \
+    -D CUDA_ARCH_BIN=75 \
+    -D CUDA_ARCH_PTX=75 \
+    -D BUILD_opencv_cudacodec=ON \
+    -D WITH_CUDNN=ON \
+    -D WITH_CUBLAS=ON \
+    -D ENABLE_FAST_MATH=ON \
+    -D CUDA_FAST_MATH=ON \
     -D WITH_FFMPEG=OFF \
     -D BUILD_opencv_python3=OFF \
     -D BUILD_opencv_python2=OFF \
     -D BUILD_opencv_java=ON \
+    -D BUILD_opencv_dnn=ON \
+    -D OPENCV_DNN_CUDA=ON \
+    -D CMAKE_CXX_STANDARD=17 \
     -D BUILD_TESTS=OFF \
     -D BUILD_PERF_TESTS=OFF \
     -D BUILD_EXAMPLES=OFF \
+    -D CMAKE_C_FLAGS="-O3 -w" \
+    -D CMAKE_CXX_FLAGS="-O3 -w" \
     ..
 
 echo "--------------------------------------------------"
-echo "STEP 6: Compile and Install"
+echo "STEP 5: Compile and Install"
 echo "--------------------------------------------------"
 ninja
 sudo ninja install
