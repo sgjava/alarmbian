@@ -99,7 +99,7 @@ Modify script to customize install for hardware acceleration, etc.
 * `mvn initialize -Pinstall-opencv`
 * `mvn clean install`
 * `cp server/target/server-1.0.0-SNAPSHOT.jar ~/.`
-* `cp server/target/smtp-1.0.0-SNAPSHOT.jar ~/.`
+* `cp smtp/target/smtp-1.0.0-SNAPSHOT.jar ~/.`
 * `cd`
 * `sudo supervisorctl start h2`
 * `sudo supervisorctl start mediamtx`
