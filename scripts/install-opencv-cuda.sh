@@ -40,6 +40,33 @@ git clone --depth 1 https://github.com/opencv/opencv.git
 git clone --depth 1 https://github.com/opencv/opencv_contrib.git
 
 echo "--------------------------------------------------"
+echo "STEP 2.5: Patch VideoIO for FFmpeg 8 Master Compatibility"
+echo "--------------------------------------------------"
+python3 -c '
+import pathlib
+
+# 1. Fix cap_ffmpeg_hw.hpp (pix_fmts loop)
+hw_file = pathlib.Path("opencv/modules/videoio/src/cap_ffmpeg_hw.hpp")
+if hw_file.exists():
+    content = hw_file.read_text()
+    # Safely neutralize the loop condition so it never executes or accesses the deleted field
+    content = content.replace("c->pix_fmts[i]", "AV_PIX_FMT_NONE")
+    content = content.replace("c->pix_fmts", "nullptr")
+    hw_file.write_text(content)
+    print("Successfully patched cap_ffmpeg_hw.hpp")
+
+# 2. Fix cap_ffmpeg_impl.hpp (supported_framerates)
+impl_file = pathlib.Path("opencv/modules/videoio/src/cap_ffmpeg_impl.hpp")
+if impl_file.exists():
+    content = impl_file.read_text()
+    # Replace the missing member struct lookup with a safe nullptr
+    content = content.replace("codec->supported_framerates", "nullptr")
+    impl_file.write_text(content)
+    print("Successfully patched cap_ffmpeg_impl.hpp")
+'
+echo "Patches successfully applied to fresh clone."
+
+echo "--------------------------------------------------"
 echo "STEP 3: Resolve SDKMAN Environment paths"
 echo "--------------------------------------------------"
 if [ -f /etc/environment ]; then
