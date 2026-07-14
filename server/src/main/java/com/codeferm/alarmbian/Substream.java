@@ -3,7 +3,6 @@
  */
 package com.codeferm.alarmbian;
 
-import com.codeferm.alarmbian.image.FfmpegIn;
 import com.codeferm.alarmbian.type.VideoSource;
 import java.lang.reflect.InvocationTargetException;
 import java.util.LinkedHashMap;
@@ -84,10 +83,6 @@ public class Substream<T> {
         } catch (ClassNotFoundException | NoSuchMethodException | SecurityException | InstantiationException
                 | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
             throw new RuntimeException(e);
-        }
-        // If using FfmpegIn class add necessary settings
-        if (videoSource instanceof FfmpegIn ffmpegIn) {
-            ffmpegIn.setBin(env.getProperty("ffmpeg.bin")).setInputArgs(inArgMap);
         }
         videoSource.open(env.getProperty("substream.device"));
     }
