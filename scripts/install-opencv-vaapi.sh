@@ -32,12 +32,10 @@ sudo rm -rf "$INSTALL_PREFIX/share/java/opencv4"
 echo "--------------------------------------------------"
 echo "STEP 2: Install System Dependencies"
 echo "--------------------------------------------------"
-sudo apt update
 sudo apt install -y \
     build-essential cmake ninja-build pkg-config git \
     libjpeg-dev libpng-dev libtiff-dev libwebp-dev libv4l-dev \
-    libatlas-base-dev libtbb-dev libgstreamer1.0-dev \
-    libgstreamer-plugins-base1.0-dev libva-dev libdrm-dev
+    libatlas-base-dev libtbb-dev libva-dev libdrm-dev
 
 echo "--------------------------------------------------"
 echo "STEP 2.5: Patch VideoIO for FFmpeg 8 Master Compatibility"
@@ -112,7 +110,9 @@ cmake -G Ninja \
     -D CMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -D OPENCV_EXTRA_MODULES_PATH="$HOME/opencv_contrib/modules" \
     -D OPENCV_SKIP_COMPILER_CHECKS=ON \
-    -D WITH_FFMPEG=OFF \
+    -D WITH_FFMPEG=ON \
+    -D WITH_GSTREAMER=OFF \
+    -D WITH_VAAPI=ON \
     -D BUILD_opencv_python3=OFF \
     -D BUILD_opencv_python2=OFF \
     -D BUILD_opencv_java=ON \

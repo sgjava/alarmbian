@@ -27,9 +27,7 @@ sudo apt update
 sudo apt install -y \
     build-essential cmake ninja-build pkg-config git \
     libjpeg-dev libpng-dev libtiff-dev libwebp-dev libv4l-dev \
-    libatlas-base-dev libtbb-dev libgstreamer1.0-dev \
-    libgstreamer-plugins-base1.0-dev libva-dev libdrm-dev \
-    libprotobuf-dev protobuf-compiler
+    libatlas-base-dev libtbb-dev libprotobuf-dev protobuf-compiler
 
 echo "--------------------------------------------------"
 echo "STEP 2: Clone OpenCV 5.0 (master)"
@@ -112,7 +110,8 @@ cmake -G Ninja \
     -D WITH_CUBLAS=ON \
     -D ENABLE_FAST_MATH=ON \
     -D CUDA_FAST_MATH=ON \
-    -D WITH_FFMPEG=OFF \
+    -D WITH_FFMPEG=ON \
+    -D WITH_GSTREAMER=OFF \
     -D BUILD_opencv_python3=OFF \
     -D BUILD_opencv_python2=OFF \
     -D BUILD_opencv_java=ON \
