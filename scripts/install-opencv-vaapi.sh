@@ -35,7 +35,7 @@ echo "--------------------------------------------------"
 sudo apt install -y \
     build-essential cmake ninja-build pkg-config git \
     libjpeg-dev libpng-dev libtiff-dev libwebp-dev libv4l-dev \
-    libatlas-base-dev libtbb-dev libva-dev libdrm-dev
+    libopenblas-dev libtbb-dev libva-dev libdrm-dev
 
 echo "--------------------------------------------------"
 echo "STEP 2.5: Patch VideoIO for FFmpeg 8 Master Compatibility"

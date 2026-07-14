@@ -27,7 +27,7 @@ sudo apt update
 sudo apt install -y \
     build-essential cmake ninja-build pkg-config git \
     libjpeg-dev libpng-dev libtiff-dev libwebp-dev libv4l-dev \
-    libatlas-base-dev libtbb-dev libprotobuf-dev protobuf-compiler
+    libopenblas-dev libtbb-dev libprotobuf-dev protobuf-compiler
 
 echo "--------------------------------------------------"
 echo "STEP 2: Clone OpenCV 5.0 (master)"
