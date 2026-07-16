@@ -1,6 +1,6 @@
 ![Title](images/title.png)
 
-Alarmbian is a high-performance, cross-platform DIY NVR and edge-analytics framework designed to turn single-board computers (SBCs), low-power mini PCs, or repurposed desktop hardware into a resilient surveillance grid. Built on a lean, native stack of Java, MediaMTX, FFmpeg, and OpenCV, it is optimized for Linux environments (tested on Ubuntu 24.04) while remaining highly portable due to its Java-centric core.
+Alarmbian is a high-performance, cross-platform DIY NVR and edge-analytics framework designed to turn single-board computers (SBCs), low-power mini PCs, or repurposed desktop hardware into a resilient surveillance grid. Built on a lean, native stack of Java, MediaMTX, FFmpeg, and OpenCV, it is optimized for Linux environments (tested on Ubuntu 26.04) while remaining highly portable due to its Java-centric core.
 
 ## The Architectural Reality: Zero-Overhead Metadata vs. Centralized Processing
 
@@ -25,7 +25,8 @@ Alarmbian flips this paradigm by eliminating centralized object classification e
 
 This framework is built for engineers who demand total control over their infrastructure. Because there are infinite ways to compile and optimize FFmpeg, fine-tune native OpenCV JNI/FFM boundaries, or target specialized acceleration flags for deep learning extensions, optimized deployment is entirely up to you. Alarmbian provides a bulletproof, zero-overhead pipeline; you choose exactly how to weaponize the underlying hardware.
 ## Install FFMPEG
-Install hardware acceleration libraries like Cuda before running script.
+Install hardware acceleration libraries like Cuda before running script. There are multiple FFMPEG scripts, so select the one matching
+your hardware.
 * `cd ~/alarmbian/scripts`
 * `./install-ffmpeg.sh`
 
@@ -90,7 +91,8 @@ Add Supervisor job
 * Check logs dir for issues
 
 ## Install OpenCV
-Modify script to customize install for hardware acceleration, etc.
+Modify script to customize install for hardware acceleration, etc. There are multiple OpenCV scripts, so select the one matching
+your hardware.
 * `cd ~/alarmbian/scripts`
 * `./install-opencv.sh`
 
