@@ -22,6 +22,7 @@ DEPS=(
     build-essential git pkg-config nasm yasm libsdl2-dev
     libx264-dev libx265-dev libvpx-dev libmp3lame-dev 
     libopus-dev libfdk-aac-dev libaom-dev libnuma-dev libv4l-dev
+    libssl-dev
 )
 
 echo "--------------------------------------------------"
@@ -110,6 +111,8 @@ CONF_FLAGS+=(
     --enable-nonfree
     --enable-shared
     --enable-pic
+    --enable-network
+    --enable-openssl
     --enable-indev=v4l2
     --enable-outdev=v4l2
 )
