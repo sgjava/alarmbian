@@ -5,8 +5,8 @@
 # @author: sgoldsmith
 #
 # Compiles an optimized, full-featured FFmpeg binary featuring simultaneous hardware acceleration for
-# NVIDIA CUDA/NVDEC and Intel Quick Sync Video (QSV / VAAPI / libvpl).
-# Pins toolchain precisely to CUDA 13.2 for architecture safety.
+# NVIDIA CUDA/NVDEC and Intel Quick Sync Video (QSV / VAAPI / libvpl) on Ubuntu 26.04.
+# Pins toolchain precisely to CUDA 13.3 for architecture safety.
 #
 # Steven P. Goldsmith
 # sgjava@gmail.com
@@ -25,8 +25,8 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # --- Pre-flight Checks ---
 if [[ $EUID -ne 0 ]]; then
-   log_error "This script must be run as root. Use: sudo ./install-ffmpeg-dual-gpu.sh"
-   exit 1
+    log_error "This script must be run as root. Use: sudo ./install-ffmpeg-dual-gpu.sh"
+    exit 1
 fi
 
 # Determine the actual invoking non-root user for group verification
@@ -36,14 +36,14 @@ else
     readonly REAL_USER="${USER}"
 fi
 
-# 1. Force the Driver-Matched CUDA 13.2 Path Verification
+# 1. Force the Driver-Matched CUDA 13.3 Path Verification
 log_info "Locating driver-compatible CUDA toolkit environment..."
-if [[ -d "/usr/local/cuda-13.2" ]]; then
-    readonly CUDA_PATH="/usr/local/cuda-13.2"
+if [[ -d "/usr/local/cuda-13.3" ]]; then
+    readonly CUDA_PATH="/usr/local/cuda-13.3"
 elif [[ -d "/usr/local/cuda" ]]; then
     readonly CUDA_PATH="/usr/local/cuda"
 else
-    readonly CUDA_PATH=$(find /usr/local/ -maxdepth 1 -type d -name "cuda-13.*" 2>/dev/null | sort -V | head -n 1)
+    readonly CUDA_PATH=$(find /usr/local/ -maxdepth 1 -type d -name "cuda-13.*" 2>/dev/null | sort -V | tail -n 1)
 fi
 
 if [[ ! -d "${CUDA_PATH:-}" ]]; then
@@ -54,6 +54,7 @@ log_info "Targeting CUDA home path: ${CUDA_PATH}"
 
 # 2. Update System Index and Install Codec Dependencies
 log_info "Updating package metadata and synchronizing dual-GPU codec libraries..."
+add-apt-repository -y universe
 apt-get update
 apt-get install -y \
     build-essential \
@@ -61,7 +62,6 @@ apt-get install -y \
     git \
     yasm \
     nasm \
-    libmfx-gen1.2 \    
     libpci-dev \
     libnuma-dev \
     libx264-dev \
@@ -89,9 +89,8 @@ cd "${WORK_DIR}"
 
 # 5. Pull and Inject NVIDIA Hardware Abstraction Interface Headers
 log_info "Cloning and tracking matching NVIDIA Codec Headers version n12.2.72.0..."
-git clone https://git.videolan.org/git/ffmpeg/nv-codec-headers.git
+git clone --depth 1 --branch n12.2.72.0 https://git.videolan.org/git/ffmpeg/nv-codec-headers.git
 cd nv-codec-headers
-git checkout n12.2.72.0
 make
 make install PREFIX=/usr/local
 cd "${WORK_DIR}"

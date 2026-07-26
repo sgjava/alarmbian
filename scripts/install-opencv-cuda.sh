@@ -4,13 +4,28 @@
 #
 # @author: sgoldsmith
 #
-# Build and install OpenCV from source using SDKMAN Ant/Java and CUDA 13.x.
+# Build and install OpenCV from source using SDKMAN Ant/Java and CUDA 13.x on Ubuntu 26.04.
 # Clones repository source trees directly into $HOME.
 #
 # Steven P. Goldsmith
 # sgjava@gmail.com
 
 set -e
+
+# --------------------------------------------------
+# Logging Helper Functions
+# --------------------------------------------------
+log_info() {
+    echo -e "\e[32m[INFO]\e[0m $1"
+}
+
+log_warn() {
+    echo -e "\e[33m[WARN]\e[0m $1"
+}
+
+log_error() {
+    echo -e "\e[31m[ERROR]\e[0m $1"
+}
 
 # 1. CLEAN ENVIRONMENT
 # Wipe variables that cause "unrecognized command-line option" errors
@@ -20,26 +35,35 @@ export CXX=/usr/bin/g++
 
 INSTALL_PREFIX="/usr/local"
 
-echo "--------------------------------------------------"
-echo "STEP 1: Install System Dependencies"
-echo "--------------------------------------------------"
+log_info "--------------------------------------------------"
+log_info "STEP 1: Purge Old OpenCV Installation Artifacts"
+log_info "--------------------------------------------------"
+log_info "Removing old libraries and jars from $INSTALL_PREFIX..."
+sudo rm -rf "$INSTALL_PREFIX/include/opencv4"
+sudo rm -f "$INSTALL_PREFIX/lib/libopencv_"*
+sudo rm -rf "$INSTALL_PREFIX/share/opencv4"
+sudo rm -rf "$INSTALL_PREFIX/share/java/opencv4"
+
+log_info "--------------------------------------------------"
+log_info "STEP 2: Install System Dependencies"
+log_info "--------------------------------------------------"
 sudo apt update
 sudo apt install -y \
     build-essential cmake ninja-build pkg-config git \
     libjpeg-dev libpng-dev libtiff-dev libwebp-dev libv4l-dev \
     libopenblas-dev libtbb-dev libprotobuf-dev protobuf-compiler
 
-echo "--------------------------------------------------"
-echo "STEP 2: Clone OpenCV 5.0 (master)"
-echo "--------------------------------------------------"
+log_info "--------------------------------------------------"
+log_info "STEP 3: Clone OpenCV Source Repositories"
+log_info "--------------------------------------------------"
 cd "$HOME"
 rm -rf opencv opencv_contrib
 git clone --depth 1 https://github.com/opencv/opencv.git
 git clone --depth 1 https://github.com/opencv/opencv_contrib.git
 
-echo "--------------------------------------------------"
-echo "STEP 2.5: Patch VideoIO for FFmpeg 8 Master Compatibility"
-echo "--------------------------------------------------"
+log_info "--------------------------------------------------"
+log_info "STEP 3.5: Patch VideoIO for FFmpeg 8 Master Compatibility"
+log_info "--------------------------------------------------"
 python3 -c '
 import pathlib
 
@@ -62,16 +86,16 @@ if impl_file.exists():
     impl_file.write_text(content)
     print("Successfully patched cap_ffmpeg_impl.hpp")
 '
-echo "Patches successfully applied to fresh clone."
+log_info "Patches successfully applied to fresh clone."
 
-echo "--------------------------------------------------"
-echo "STEP 3: Resolve SDKMAN Environment paths"
-echo "--------------------------------------------------"
+log_info "--------------------------------------------------"
+log_info "STEP 4: Resolve SDKMAN Environment paths"
+log_info "--------------------------------------------------"
 if [ -f /etc/environment ]; then
     source /etc/environment
 fi
 
-# Fix: Disable unbound variable check temporarily for SDKMAN initialization
+# Disable unbound variable check temporarily for SDKMAN initialization
 if [ -f "$HOME/.sdkman/bin/sdkman-init.sh" ]; then
     set +u
     source "$HOME/.sdkman/bin/sdkman-init.sh"
@@ -85,18 +109,17 @@ if [ -z "${JAVA_HOME:-}" ] || [ -z "${ANT_HOME:-}" ]; then
 fi
 
 ANT_BIN="$ANT_HOME/bin/ant"
-echo "Using Java Home: $JAVA_HOME"
-echo "Using Ant Executable: $ANT_BIN"
+log_info "Using Java Home: $JAVA_HOME"
+log_info "Using Ant Executable: $ANT_BIN"
 
-echo "--------------------------------------------------"
-echo "STEP 4: Configure and Build"
-echo "--------------------------------------------------"
+log_info "--------------------------------------------------"
+log_info "STEP 5: Configure CMake for Ninja Build (CUDA 13.x)"
+log_info "--------------------------------------------------"
 rm -rf "$HOME/opencv/build"
 mkdir -p "$HOME/opencv/build"
 cd "$HOME/opencv/build"
 
-# OpenCV 5.0 CMake Configuration
-# OPENCV_SKIP_COMPILER_CHECKS=ON: Bypasses the broken 'probe' tests
+# OpenCV CMake Configuration
 cmake -G Ninja \
     -D CMAKE_BUILD_TYPE=RELEASE \
     -D CMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
@@ -115,6 +138,8 @@ cmake -G Ninja \
     -D BUILD_opencv_python3=OFF \
     -D BUILD_opencv_python2=OFF \
     -D BUILD_opencv_java=ON \
+    -D ANT_EXECUTABLE="$ANT_BIN" \
+    -D JAVA_HOME="$JAVA_HOME" \
     -D BUILD_opencv_dnn=ON \
     -D OPENCV_DNN_CUDA=ON \
     -D CMAKE_CXX_STANDARD=17 \
@@ -125,14 +150,38 @@ cmake -G Ninja \
     -D CMAKE_CXX_FLAGS="-O3 -w" \
     ..
 
-echo "--------------------------------------------------"
-echo "STEP 5: Compile and Install"
-echo "--------------------------------------------------"
+log_info "--------------------------------------------------"
+log_info "STEP 6: Compile and Install"
+log_info "--------------------------------------------------"
 ninja
 sudo ninja install
 sudo ldconfig
 
-echo "--------------------------------------------------"
-echo "Build complete."
-echo "--------------------------------------------------"
+log_info "--------------------------------------------------"
+log_info "STEP 7: Create Legacy JNI Symlinks for Spring Boot"
+log_info "--------------------------------------------------"
+# Dynamically locate the built libopencv_java*.so file and map libopencv_java4140.so to it
+BUILT_JAVA_SO=$(ls "$HOME/opencv/build/lib"/libopencv_java*.so 2>/dev/null | head -n 1)
 
+if [ -n "$BUILT_JAVA_SO" ]; then
+    SO_NAME=$(basename "$BUILT_JAVA_SO")
+    log_info "Found compiled Java library: $SO_NAME"
+    
+    # 1. Local build tree symlink
+    cd "$HOME/opencv/build/lib"
+    ln -sf "$SO_NAME" libopencv_java4140.so
+    
+    # 2. System install directory symlink
+    if [ -d "$INSTALL_PREFIX/share/java/opencv4" ]; then
+        sudo ln -sf "$INSTALL_PREFIX/share/java/opencv4/$SO_NAME" "$INSTALL_PREFIX/share/java/opencv4/libopencv_java4140.so"
+    fi
+    
+    sudo ldconfig
+    log_info "Symlinked libopencv_java4140.so -> $SO_NAME successfully."
+else
+    log_warn "No libopencv_java*.so found in build directory!"
+fi
+
+log_info "--------------------------------------------------"
+log_info "Build complete."
+log_info "--------------------------------------------------"

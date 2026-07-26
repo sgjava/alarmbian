@@ -5,7 +5,7 @@
 # @author: sgoldsmith
 #
 # Build and install FFmpeg from source with shared libraries (.so),
-# hardware acceleration auto-detection, and free/non-free codecs.
+# hardware acceleration auto-detection, and free/non-free codecs on Ubuntu 26.04.
 # Clones repository source trees directly into $HOME.
 #
 # Steven P. Goldsmith
@@ -96,7 +96,7 @@ fi
 echo "--------------------------------------------------"
 echo "STEP 4: Clone Stable Production FFmpeg Source"
 echo "--------------------------------------------------"
-git clone --depth 1 --branch release/7.1 https://github.com/FFmpeg/FFmpeg.git ffmpeg_src
+git clone --depth 1 https://github.com/FFmpeg/FFmpeg.git ffmpeg_src
 cd ffmpeg_src
 
 echo "--------------------------------------------------"
@@ -110,11 +110,14 @@ CONF_FLAGS+=(
     --enable-gpl
     --enable-nonfree
     --enable-shared
+    --disable-static
     --enable-pic
     --enable-network
     --enable-openssl
     --enable-indev=v4l2
     --enable-outdev=v4l2
+    --extra-cflags='-I/usr/local/include -O3'
+    --extra-ldflags='-L/usr/local/lib'
 )
 
 # Standard Software Codec Blocks

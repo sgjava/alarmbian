@@ -4,7 +4,7 @@
 #
 # @author: sgoldsmith
 #
-# Build and install OpenCV from source using SDKMAN Ant/Java.
+# Build and install OpenCV from source using SDKMAN Ant/Java on Ubuntu 26.04.
 # Clones repository source trees directly into $HOME.
 #
 # Steven P. Goldsmith
@@ -38,7 +38,15 @@ sudo apt install -y \
     libopenblas-dev libtbb-dev libva-dev libdrm-dev
 
 echo "--------------------------------------------------"
-echo "STEP 2.5: Patch VideoIO for FFmpeg 8 Master Compatibility"
+echo "STEP 3: Clone OpenCV (master)"
+echo "--------------------------------------------------"
+cd "$HOME"
+rm -rf opencv opencv_contrib
+git clone --depth 1 https://github.com/opencv/opencv.git
+git clone --depth 1 https://github.com/opencv/opencv_contrib.git
+
+echo "--------------------------------------------------"
+echo "STEP 3.5: Patch VideoIO for FFmpeg 8 Master Compatibility"
 echo "--------------------------------------------------"
 python3 -c '
 import pathlib
@@ -65,14 +73,6 @@ if impl_file.exists():
 echo "Patches successfully applied to fresh clone."
 
 echo "--------------------------------------------------"
-echo "STEP 3: Clone OpenCV (master)"
-echo "--------------------------------------------------"
-cd "$HOME"
-rm -rf opencv opencv_contrib
-git clone --depth 1 https://github.com/opencv/opencv.git
-git clone --depth 1 https://github.com/opencv/opencv_contrib.git
-
-echo "--------------------------------------------------"
 echo "STEP 4: Resolve SDKMAN Environment paths"
 echo "--------------------------------------------------"
 if [ -f /etc/environment ]; then
@@ -87,8 +87,8 @@ if [ -f "$HOME/.sdkman/bin/sdkman-init.sh" ]; then
 fi
 
 if [ -z "${JAVA_HOME:-}" ] || [ -z "${ANT_HOME:-}" ]; then
-    log_error "JAVA_HOME or ANT_HOME is missing from the environment."
-    log_error "Please ensure you have sourced /etc/environment or restarted your shell."
+    echo "JAVA_HOME or ANT_HOME is missing from the environment."
+    echo "Please ensure you have sourced /etc/environment or restarted your shell."
     exit 1
 fi
 
@@ -103,8 +103,8 @@ rm -rf "$HOME/opencv/build"
 mkdir -p "$HOME/opencv/build"
 cd "$HOME/opencv/build"
 
-# OpenCV 5.0 CMake Configuration
-# OPENCV_SKIP_COMPILER_CHECKS=ON: Bypasses the broken 'probe' tests
+# OpenCV CMake Configuration
+# Explicitly passing ANT_EXECUTABLE guarantees Java wrapper generation
 cmake -G Ninja \
     -D CMAKE_BUILD_TYPE=RELEASE \
     -D CMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
@@ -116,6 +116,8 @@ cmake -G Ninja \
     -D BUILD_opencv_python3=OFF \
     -D BUILD_opencv_python2=OFF \
     -D BUILD_opencv_java=ON \
+    -D ANT_EXECUTABLE="$ANT_BIN" \
+    -D JAVA_HOME="$JAVA_HOME" \
     -D BUILD_TESTS=OFF \
     -D BUILD_PERF_TESTS=OFF \
     -D BUILD_EXAMPLES=OFF \
@@ -129,6 +131,30 @@ sudo ninja install
 sudo ldconfig
 
 echo "--------------------------------------------------"
+echo "STEP 7: Create Legacy JNI Symlinks for Spring Boot"
+echo "--------------------------------------------------"
+# Dynamically locate the built libopencv_java*.so file and map libopencv_java4140.so to it
+BUILT_JAVA_SO=$(ls "$HOME/opencv/build/lib"/libopencv_java*.so 2>/dev/null | head -n 1)
+
+if [ -n "$BUILT_JAVA_SO" ]; then
+    SO_NAME=$(basename "$BUILT_JAVA_SO")
+    echo "Found compiled Java library: $SO_NAME"
+    
+    # 1. Local build tree symlink
+    cd "$HOME/opencv/build/lib"
+    ln -sf "$SO_NAME" libopencv_java4140.so
+    
+    # 2. System install directory symlink
+    if [ -d "$INSTALL_PREFIX/share/java/opencv4" ]; then
+        sudo ln -sf "$INSTALL_PREFIX/share/java/opencv4/$SO_NAME" "$INSTALL_PREFIX/share/java/opencv4/libopencv_java4140.so"
+    fi
+    
+    sudo ldconfig
+    echo "Symlinked libopencv_java4140.so -> $SO_NAME successfully."
+else
+    echo "WARNING: No libopencv_java*.so found in build directory!"
+fi
+
+echo "--------------------------------------------------"
 echo "Build complete."
 echo "--------------------------------------------------"
-
