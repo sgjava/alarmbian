@@ -39,7 +39,7 @@ fi
 # 2. Dependencies
 log_info "Updating system dependencies..."
 apt-get update
-apt-get install -y build-essential linux-headers-"$(uname -r)" wget software-properties-common
+apt-get install -y build-essential libcudnn9-cuda-12 libcudnn9-dev-cuda-12 linux-headers-"$(uname -r)" wget software-properties-common
 
 # 3. Configure Repository Pinning (ubuntu2604)
 log_info "Setting up repository pinning for Ubuntu 26.04..."
