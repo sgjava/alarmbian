@@ -96,6 +96,12 @@ your hardware.
 * `cd ~/alarmbian/scripts`
 * `./install-opencv.sh`
 
+If sudo times out during install:
+
+* `cd ~/opencv/build`
+* `sudo ninja install`
+* `sudo ldconfig`
+
 ## Build project
 * `cd ~/alarmbian`
 * `mvn initialize -Pinstall-opencv`
